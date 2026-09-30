@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#064e3b" />
+<meta name="description" content="Execflora — augmented reality plant showroom. Project true-scale indoor and outdoor plants onto client desks, tables and floors from any mobile browser." />
+<title>Execflora · AR Plant Showroom</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7',
+            400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857',
+            800: '#065f46', 900: '#064e3b', 950: '#022c22'
+          },
+          slate: {
+            50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
+            400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155',
+            800: '#1e293b', 900: '#0f172a'
+          }
+        },
+        fontFamily: {
+          display: ['Fraunces', 'Georgia', 'serif'],
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+        },
+        boxShadow: {
+          soft: '0 10px 30px -12px rgba(6,78,59,.28)',
+          lift: '0 24px 60px -24px rgba(6,78,59,.45)'
+        }
+      }
+    }
+  };
+</script>
+<style>
+  :root { --ring: rgba(6,78,59,.10); }
+  html, body { -webkit-tap-highlight-color: transparent; }
+  body { font-family: Inter, ui-sans-serif, system-ui, sans-serif; overscroll-behavior: none; }
+  .font-display { font-family: Fraunces, Georgia, serif; }
+  * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  *::-webkit-scrollbar { width: 9px; height: 9px; }
+  *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+  *::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  .no-sb { scrollbar-width: none; }
+  .no-sb::-webkit-scrollbar { display: none; }
+
+  #sidebar { width: 344px; transition: width .3s cubic-bezier(.4,0,.2,1), transform .3s cubic-bezier(.4,0,.2,1); overflow: hidden; }
+  #sidebarInner { width: 344px; }
+  body.nav-closed #sidebar { width: 0; }
+  body.nav-closed #sidebarInner { border-right: 0; }
+
+  @media (max-width: 1023px) {
+    #sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 60; width: min(88vw, 380px); transform: translateX(-102%); box-shadow: 0 0 60px rgba(2,44,34,.35); }
+    #sidebarInner { width: 100%; }
+    body.nav-open #sidebar { transform: translateX(0); }
+    body.nav-closed #sidebar { width: min(88vw, 380px); }
+  }
+  @media (min-width: 1024px) {
+    body.nav-open #sidebar { width: 344px; }
+  }
+
+  model-viewer { width: 100%; height: 100%; background: transparent; touch-action: pan-y; }
+  model-viewer::part(default-ar-button) { display: none; }
+  #ar-button {
+    position: absolute; right: 14px; bottom: 14px;
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .7rem 1.05rem; border-radius: 999px;
+    background: linear-gradient(135deg, #059669, #047857);
+    color: #ecfdf5; font-weight: 600; font-size: .875rem; letter-spacing: .01em;
+    box-shadow: 0 14px 34px -12px rgba(4,120,87,.75);
+    border: 1px solid rgba(255,255,255,.22);
+    white-space: nowrap; cursor: pointer; transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+  }
+  #ar-button:hover { transform: translateY(-1px); filter: brightness(1.06); }
+  #ar-button:active { transform: translateY(0) scale(.985); }
+  #ar-button[disabled] { opacity: .55; cursor: not-allowed; }
+  @media (max-width: 1023px) {
+    #ar-button { right: 12px; bottom: 92px; padding: .62rem .9rem; font-size: .8rem; }
+  }
+
+  .grain::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(circle at 1px 1px, rgba(6,78,59,.13) 1px, transparent 0);
+    background-size: 16px 16px;
+  }
+  .card-shadow { box-shadow: var(--ring), 0 8px 26px -16px rgba(6,78,59,.45); }
+  .sheet-shadow { box-shadow: 0 -14px 44px -18px rgba(6,78,59,.4); }
+  .skel { background: linear-gradient(100deg, #eef2f3 20%, #e2e8f0 40%, #eef2f3 60%); background-size: 220% 100%; animation: shimmer 1.3s infinite linear; }
+  @keyframes shimmer { 0% { background-position: 140% 0; } 100% { background-position: -40% 0; } }
+  .fade-up { animation: fadeUp .32s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .no-scroll { overflow: hidden; }
+  body.present #sidebar, body.present .hide-present { display: none !important; }
+  body.present header { background: transparent; border-color: transparent; }
+  body.present #viewerWrap { padding-bottom: env(safe-area-inset-bottom); }
+  [data-tip]:hover::after {
+    content: attr(data-tip); position: absolute; z-index: 30; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #fff; font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none;
+  }
+</style>
+</head>
+<body class="h-full overflow-hidden bg-slate-100 text-slate-800 antialiased">
+
+<div class="flex h-full flex-col">
+
+  <header class="pt-safe z-40 shrink-0 border-b border-slate-200 bg-white/85 backdrop-blur-xl">
+    <div class="h-1 w-full bg-gradient-to-r from-brand-900 via-brand-600 to-brand-400"></div>
+    <div class="flex h-16 items-center gap-2 px-2.5 sm:gap-3 sm:px-4">
+
+      <button id="navToggle" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-slate-600 transition hover:bg-slate-100 hover:text-brand-800 active:scale-95" aria-label="Toggle catalog" aria-expanded="true">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></svg>
+      </button>
+
+      <a href="#" class="flex min-w-0 items-center gap-2.5 select-none">
+        <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-700 to-brand-900 shadow-soft">
+          <svg class="h-5 w-5 text-brand-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21c0-5 2-9 8-11-1 6-4 9-8 11Z"/><path d="M12 21c0-4-1.6-7-6.5-8.6C6.4 17.6 8.6 20 12 21Z"/><path d="M12 21v-6"/>
+          </svg>
+        </span>
+        <span class="hidden min-w-0 sm:block">
+          <span class="font-display block truncate text-[17px] font-600 leading-tight tracking-tight text-brand-950">Execflora</span>
+          <span class="block truncate text-[10.5px] font-medium uppercase tracking-[.13em] text-slate-400">Botanical Sales · AR Showroom</span>
+        </span>
+      </a>
+
+      <div class="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <div class="hidden items-center gap-2 rounded-full border border-slate-200 bg-white py-1.5 pl-2.5 pr-3 md:flex" id="headerMeta">
+          <span class="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-brand-50 ring-1 ring-brand-100" id="headerThumb"></span>
+          <span class="min-w-0">
+            <span class="block truncate text-[12.5px] font-600 leading-tight text-slate-800" id="headerName">—</span>
+            <span class="block truncate text-[10.5px] italic leading-tight text-slate-400" id="headerBotanical">—</span>
+          </span>
+        </div>
+
+        <button id="btnPresent" class="hide-present grid h-10 w-10 place-items-center rounded-xl text-slate-500 transition hover:bg-brand-50 hover:text-brand-700 active:scale-95" aria-label="Presentation mode" data-tip="Presentation">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+        </button>
+
+        <button id="btnShare" class="grid h-10 w-10 place-items-center rounded-xl text-slate-500 transition hover:bg-brand-50 hover:text-brand-700 active:scale-95" aria-label="Share plant" data-tip="Share">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/></svg>
+        </button>
+
+        <button id="btnExitPresent" class="hidden items-center gap-1.5 rounded-xl bg-brand-900 px-3 py-2 text-xs font-600 text-brand-50 shadow-soft active:scale-95">
+          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 6-6 6 6 6"/></svg>
+          Exit
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="relative flex min-h-0 flex-1">
+
+    <aside id="sidebar" class="shrink-0 border-r border-slate-200 bg-white" aria-label="Plant catalog">
+      <div id="sidebarInner" class="flex h-full min-h-0 flex-col border-r border-slate-200 bg-white">
+
+        <div class="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4">
+          <div class="flex items-baseline justify-between">
+            <h2 class="font-display text-lg font-600 tracking-tight text-brand-950">Catalog</h2>
+            <span class="text-[11px] font-500 text-slate-400"><span id="resultCount">0</span> varieties</span>
+          </div>
+
+          <div class="relative mt-3">
+            <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+            <input id="search" type="search" autocomplete="off" spellcheck="false" placeholder="Search name or botanical…"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-9 text-[13.5px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:bg-white focus:ring-4 focus:ring-brand-600/10" />
+            <button id="searchClear" class="absolute right-2.5 top-1/2 hidden h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-600" aria-label="Clear search">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"/></svg>
+            </button>
+          </div>
+
+          <div class="no-sb -mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-0.5" id="catChips" role="tablist"></div>
+
+          <div class="mt-3 flex items-center gap-2">
+            <div class="no-sb flex flex-1 gap-1.5 overflow-x-auto" id="lightChips"></div>
+            <select id="sort" class="shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11.5px] font-500 text-slate-600 outline-none focus:border-brand-400">
+              <option value="featured">Featured</option>
+              <option value="price-asc">Price ↑</option>
+              <option value="price-desc">Price ↓</option>
+              <option value="height-asc">Height ↑</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3" id="catalog"></div>
+
+        <div class="shrink-0 border-t border-slate-100 bg-slate-50/70 px-4 py-3 pb-safe">
+          <p class="text-[11px] leading-relaxed text-slate-500">
+            <span class="font-600 text-slate-700">AR tip:</span> on Android open Chrome, tap
+            <span class="font-500 text-brand-700">View in your space</span> and sweep your phone across the desk.
+            Surface detection places the plant instantly.
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <div id="scrim" class="fixed inset-0 z-50 hidden bg-brand-950/45 backdrop-blur-[2px] lg:hidden"></div>
+
+    <section class="relative min-w-0 flex-1">
+
+      <div id="viewerWrap" class="grain absolute inset-0 flex flex-col bg-gradient-to-b from-brand-50 via-white to-slate-100">
+
+        <model-viewer id="viewer"
+          ar
+          ar-modes="webxr scene-viewer quick-look"
+          camera-controls
+          disable-zoom
+          disable-pan
+          auto-rotate
+          auto-rotate-delay="3200"
+          rotation-per-second="14deg"
+          camera-orbit="30deg 76deg auto"
+          min-camera-orbit="auto 12deg auto"
+          max-camera-orbit="auto 165deg auto"
+          field-of-view="34deg"
+          field-of-view-mode="fixed"
+          interaction-prompt="auto"
+          shadow-intensity="1.1"
+          shadow-softness="0.9"
+          exposure="1.05"
+          environment-image="neutral"
+          reveal="auto"
+          alt="3D model of the selected plant">
+          <button id="ar-button" slot="ar-button">
+            <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8"/><path d="M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8"/><path d="M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16"/><path d="M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><path d="M12 8v8M8.5 10.7 12 8l3.5 2.7"/></svg>
+            <span>View in your space</span>
+          </button>
+        </model-viewer>
+
+        <div id="loader" class="pointer-events-none absolute inset-0 grid place-items-center">
+          <div class="flex flex-col items-center gap-3">
+            <div class="relative h-14 w-14">
+              <span class="absolute inset-0 rounded-2xl border-2 border-brand-200"></span>
+              <span class="absolute inset-0 animate-spin rounded-2xl border-2 border-transparent border-t-brand-600"></span>
+              <svg class="absolute inset-0 m-auto h-6 w-6 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 21c0-5 2-9 8-11-1 6-4 9-8 11Z"/><path d="M12 21v-7"/></svg>
+            </div>
+            <span class="text-[11.5px] font-500 tracking-wide text-slate-400">Growing your plant…</span>
+          </div>
+        </div>
+
+        <div id="errBox" class="absolute inset-x-4 top-16 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800"></div>
+
+        <div class="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 sm:left-4 sm:top-4">
+          <span id="catBadge" class="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-600 text-brand-800 shadow-soft ring-1 ring-brand-900/5 backdrop-blur"></span>
+          <span id="arChip" class="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-slate-900/85 px-3 py-1.5 text-[11px] font-600 text-white backdrop-blur"></span>
+          <span id="secureWarn" class="hidden items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-[11px] font-600 text-amber-950"></span>
+        </div>
+
+        <div class="absolute right-3 top-3 z-10 flex flex-col gap-1.5 sm:right-4 sm:top-4">
+          <button id="btnReset" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Reset camera">
+            <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 4v4h4"/></svg>
+          </button>
+          <button id="btnSpin" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Toggle auto rotate">
+            <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5a7.5 7.5 0 1 1-6.9 4.6"/><path d="M12 4.5 9 2.6M12 4.5l3-1.9"/></svg>
+          </button>
+          <button id="btnFull" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Fullscreen">
+            <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5.5A2.5 2.5 0 0 0 3 5.5V8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M16 21h2.5a2.5 2.5 0 0 0 2.5-2.5V16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/></svg>
+          </button>
+        </div>
+
+        <div class="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2.5 px-3">
+          <div class="flex w-full items-center justify-center gap-2 pb-1">
+            <span class="hide-present hidden rounded-full bg-white/85 px-2.5 py-1 text-[10.5px] font-600 uppercase tracking-[.1em] text-slate-500 backdrop-blur sm:inline">Pot finish</span>
+            <div id="potRow" class="hide-present flex items-center gap-1.5 rounded-2xl bg-white/85 p-1.5 shadow-soft ring-1 ring-slate-900/5 backdrop-blur"></div>
+            <button id="btnMeasure" class="hide-present rounded-2xl bg-white/85 p-2.5 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Scale reference" data-tip="Real-world scale">
+              <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18v8H3z"/><path d="M7 8v3M12 8v4M17 8v3"/></svg>
+            </button>
+          </div>
+
+          <div id="cardHost" class="w-full sm:w-auto"></div>
+        </div>
+
+        <div id="toastHost" class="pointer-events-none absolute left-1/2 top-20 z-30 flex -translate-x-1/2 flex-col items-center gap-2"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+window.__execflora = (function () {
+  'use strict';
+
+  const TAU = Math.PI * 2;
+
+  const CONFIG = {
+    brand: 'Execflora',
+    currency: '$',
+    modelBase: '',
+    iosUsdzBase: '',
+    defaultPot: 'terracotta'
+  };
+
+  const POT_COLORS = [
+    { id: 'terracotta',    label: 'Terracotta',    hex: '#C1663F', rough: 0.88, chip: '#C1663F' },
+    { id: 'ceramic-white', label: 'Ceramic White', hex: '#F3F5F4', rough: 0.24, chip: '#EDF0EF' },
+    { id: 'slate-gray',    label: 'Slate Gray',    hex: '#475569', rough: 0.56, chip: '#475569' },
+    { id: 'forest-green',  label: 'Forest Green',  hex: '#14532D', rough: 0.46, chip: '#14532D' }
+  ];
+
+  const CATEGORIES = [
+    { id: 'all',     label: 'All Plants',   short: 'All' },
+    { id: 'desk',    label: 'Desk & Table', short: 'Desk' },
+    { id: 'floor',   label: 'Floor Stand',  short: 'Floor' },
+    { id: 'hanging', label: 'Hanging',      short: 'Hanging' }
+  ];
+
+  const LIGHT_LEVELS = [
+    { id: 'low',    label: 'Low light',    rank: 0 },
+    { id: 'medium', label: 'Medium light', rank: 1 },
+    { id: 'bright', label: 'Bright light', rank: 2 }
+  ];
+
+  const LIGHT_COPY = {
+    low:    { label: 'Low light tolerant', note: 'Offices, north-facing rooms and corridors. Never direct sun.' },
+    medium: { label: 'Medium, indirect',   note: 'Bright rooms away from hot afternoon sun. Best all-round performer.' },
+    bright: { label: 'Bright, indirect+',  note: 'South or west glazing, 1–3 m back from the window.' }
+  };
+
+  const PLANTS = [
+    {
+      id: 'snake-plant', name: 'Snake Plant', botanical: "Sansevieria trifasciata 'Laurentii'",
+      cat: 'desk', style: 'snake', price: 34, height: 0.58, dims: 'H 58 cm · Ø 13 cm pot',
+      light: 'low', water: 'Every 2–3 weeks', care: 'Let soil dry fully. Drought-proof and near-indestructible in a dim office.',
+      office: 'Reception desks, meeting corners, walkways and dim meeting rooms where nothing else survives.',
+      home: 'Bedroom, hallway console, bathroom shelf or a low cabinet away from south glazing.',
+      tags: ['air purifying', 'pet unfriendly', 'drought tolerant'],
+      palette: { leaf: '#2F6B4F', accent: '#CBB037', stem: '#6E7C55', soil: '#4A3B2A' }
+    },
+    {
+      id: 'zz-plant', name: 'ZZ Plant', botanical: 'Zamioculcas zamiifolia',
+      cat: 'desk', style: 'zz', price: 38, height: 0.54, dims: 'H 54 cm · Ø 15 cm pot',
+      light: 'low', water: 'Every 2–3 weeks', care: 'Rhizomes store water — overwatering is the only real risk.',
+      office: 'Desks, hot-desk hubs, windowless meeting rooms and AV cupboards.',
+      home: 'Entry hall, bathroom, north bedroom or a shelf in low light.',
+      tags: ['air purifying', 'low light', 'pet unfriendly'],
+      palette: { leaf: '#2E7D53', accent: '#3F9663', stem: '#5F7B4C', soil: '#4A3B2A' }
+    },
+    {
+      id: 'echeveria', name: 'Echeveria', botanical: 'Echeveria elegans',
+      cat: 'desk', style: 'succulent', price: 24, height: 0.20, dims: 'H 20 cm · Ø 12 cm pot',
+      light: 'bright', water: 'Every 3 weeks', care: 'Gritty mix, water the soil not the rosette, feed in spring only.',
+      office: 'Sunlit windowsills, reception counters and exposed shelving.',
+      home: 'Kitchen sill, south-facing bay window, terracotta by the patio door.',
+      tags: ['succulent', 'pet friendly', 'low water'],
+      palette: { leaf: '#7FA98B', accent: '#D98B8B', stem: '#8FA98E', soil: '#5B4A38' }
+    },
+    {
+      id: 'peperomia', name: 'Baby Rubber Plant', botanical: 'Peperomia obtusifolia',
+      cat: 'desk', style: 'peperomia', price: 19, height: 0.36, dims: 'H 36 cm · Ø 13 cm pot',
+      light: 'medium', water: 'Weekly', care: 'Semi-succulent leaves — water when top 3 cm are dry.',
+      office: 'Desks, pin-boards, filing cabinets and small credenza tops.',
+      home: 'Kitchen counters, plant shelves, small desks and tidy bedrooms.',
+      tags: ['pet friendly', 'compact', 'office favourite'],
+      palette: { leaf: '#4E8B5F', accent: '#8FBF7A', stem: '#6B8352', soil: '#4A3B2A' }
+    },
+    {
+      id: 'fiddle-leaf-fig', name: 'Fiddle Leaf Fig', botanical: 'Ficus lyrata',
+      cat: 'floor', style: 'tree', price: 189, height: 1.68, dims: 'H 1.68 m · Ø 30 cm pot',
+      light: 'bright', water: 'Weekly', care: 'Hates being moved. Rotate a quarter turn weekly, wipe the leaves monthly.',
+      office: 'Executive corners, boardrooms and glazed reception atria.',
+      home: 'Living room corner beside a tall window, entry hall, double-height stairwell.',
+      tags: ['statement', 'air purifying', 'high impact'],
+      palette: { leaf: '#2C6E49', accent: '#43915C', stem: '#7C6A4F', soil: '#4A3B2A' }
+    },
+    {
+      id: 'bird-of-paradise', name: 'Bird of Paradise', botanical: 'Strelitzia nicolai',
+      cat: 'floor', style: 'banana', price: 225, height: 1.82, dims: 'H 1.82 m · Ø 32 cm pot',
+      light: 'bright', water: 'Weekly', care: 'Splits leaves are natural. Wipe dust off monthly and feed fortnightly in growth.',
+      office: 'Atria, lobby islands, poolside lounges, hotel-style open desks.',
+      home: 'Sunny living room, conservatory, beside bi-fold doors.',
+      tags: ['statement', 'tropical', 'pet unfriendly'],
+      palette: { leaf: '#2A6F4E', accent: '#3E8E5A', stem: '#6E8A55', soil: '#4A3B2A' }
+    },
+    {
+      id: 'monstera', name: 'Monstera Deliciosa', botanical: 'Monstera deliciosa',
+      cat: 'floor', style: 'monstera', price: 145, height: 1.55, dims: 'H 1.55 m · Ø 28 cm pot',
+      light: 'medium', water: 'Every 1–2 weeks', care: 'Leaves split with maturity and light. Moss pole climbs double the yield.',
+      office: 'Creative studios, design floors, breakout corners, collaborative desks.',
+      home: 'Living room, dining nook, staircase landing — train it up a pole.',
+      tags: ['air purifying', 'statement', 'fast growing'],
+      palette: { leaf: '#2E7D4F', accent: '#5FA05F', stem: '#6E8A55', soil: '#4A3B2A' }
+    },
+    {
+      id: 'dragon-tree', name: 'Dragon Tree', botanical: 'Dracaena marginata',
+      cat: 'floor', style: 'dracaena', price: 129, height: 1.74, dims: 'H 1.74 m · Ø 24 cm pot',
+      light: 'low', water: 'Every 2 weeks', care: 'Cane-like stems store water. Prefers being slightly pot-bound.',
+      office: 'Open-plan floors, call-centre zones, stairwells, wide corridors.',
+      home: 'Hallway, stair landing, bright corner, beside a piano.',
+      tags: ['air purifying', 'low light', 'pet unfriendly'],
+      palette: { leaf: '#3A7D55', accent: '#A33B2E', stem: '#7A6A4E', soil: '#4A3B2A' }
+    },
+    {
+      id: 'boston-fern', name: 'Boston Fern', botanical: 'Nephrolepis exaltata',
+      cat: 'hanging', style: 'fern', price: 32, height: 0.66, dims: '66 cm tall · Ø 22 cm pot + 30 cm hanger',
+      light: 'medium', water: 'Twice weekly', care: 'Loves humidity and a misting. Trim yellow fronds at the base.',
+      office: 'Reception soffits, meeting-room corners, studios with humidifiers.',
+      home: 'Bathroom, kitchen, above a stair rail, shaded porch.',
+      tags: ['humidity loving', 'pet friendly', 'hanging'],
+      palette: { leaf: '#4C9A4E', accent: '#6BB35B', stem: '#7C8A4E', soil: '#4A3B2A' }
+    },
+    {
+      id: 'golden-pothos', name: 'Golden Pothos', botanical: "Epipremnum aureum 'Golden'",
+      cat: 'hanging', style: 'trailing', price: 28, height: 1.15, dims: '90 cm trail · Ø 20 cm pot + 30 cm hanger',
+      light: 'low', water: 'Every 1–2 weeks', care: 'Trails faster in brighter spots. Root in water to propagate freebies.',
+      office: 'Cubicle dividers, shelves, hanging from any overhead rail.',
+      home: 'Kitchen, bathroom, bookshelf cascade, above a sideboard.',
+      tags: ['air purifying', 'low light', 'easy care'],
+      palette: { leaf: '#3F8C4A', accent: '#CBD458', stem: '#6F8F5A', soil: '#4A3B2A' }
+    },
+    {
+      id: 'spider-plant', name: 'Spider Plant', botanical: 'Chlorophytum comosum',
+      cat: 'hanging', style: 'spider', price: 22, height: 0.62, dims: '62 cm spread · Ø 18 cm pot + 30 cm hanger',
+      light: 'medium', water: 'Weekly', care: 'Pumps out baby plantlets — a great upsell conversation starter.',
+      office: 'Desks with light from above, windows, noticeboard corners.',
+      home: 'Kitchen window, study, hanging near a bright mirror.',
+      tags: ['pet friendly', 'pet safe', 'fast growing'],
+      palette: { leaf: '#5C9A54', accent: '#E7EFC9', stem: '#7C8A4E', soil: '#4A3B2A' }
+    },
+    {
+      id: 'string-of-pearls', name: 'String of Pearls', botanical: 'Curio rowleyanus',
+      cat: 'hanging', style: 'pearls', price: 36, height: 0.85, dims: '85 cm trail · Ø 18 cm pot + 30 cm hanger',
+      light: 'bright', water: 'Monthly', care: 'Never water on the pearls — rot risk. Feed with a drop of seaweed.',
+      office: 'Bright shelving, glass cabinets, high window displays.',
+      home: 'South window, glass shelf, hanging near a skylight.',
+      tags: ['succulent', 'unusual', 'pet unfriendly'],
+      palette: { leaf: '#8FBF7A', accent: '#7FAE6B', stem: '#8CA377', soil: '#5B4A38' }
+    }
+  ];
+
+  function v(x, y, z) { return [x, y, z]; }
+  function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function mul(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function len(a) { return Math.hypot(a[0], a[1], a[2]); }
+  function norm(a) { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  function clamp(x, a, b) { return x < a ? a : x > b ? b : x; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function rotAxis(a, axis, ang) {
+    const k = cross(axis, a), c = Math.cos(ang), s = Math.sin(ang);
+    return add(add(mul(a, c), mul(k, s)), mul(axis, dot(axis, a) * (1 - c)));
+  }
+  function rng(seed) {
+    let s = (seed >>> 0) || 1;
+    return function () { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  }
+  function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function srgbToLinear(hex) {
+    const h = hex.replace('#', '');
+    const out = [];
+    for (let i = 0; i < 3; i++) {
+      const c = parseInt(h.substr(i * 2, 2), 16) / 255;
+      out.push(c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    }
+    return out;
+  }
+
+  const IDENTITY = new Float64Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+  function matMul(a, b) {
+    const o = new Float64Array(16);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+      o[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+    }
+    return o;
+  }
+  function matT(x, y, z) { return new Float64Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]); }
+  function matS(x, y, z) { return new Float64Array([x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]); }
+  function matRX(a) { const c = Math.cos(a), s = Math.sin(a); return new Float64Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]); }
+  function matRY(a) { const c = Math.cos(a), s = Math.sin(a); return new Float64Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]); }
+  function matRZ(a) { const c = Math.cos(a), s = Math.sin(a); return new Float64Array([c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1]); }
+  function matDir(pos, dir, roll) {
+    const y = norm(dir);
+    const ref = Math.abs(y[1]) > 0.94 ? [1, 0, 0] : [0, 1, 0];
+    let x = norm(cross(ref, y));
+    let z = cross(x, y);
+    if (roll) {
+      const c = Math.cos(roll), s = Math.sin(roll);
+      const xr = add(mul(x, c), mul(z, s));
+      const zr = add(mul(z, c), mul(x, -s));
+      x = xr; z = zr;
+    }
+    return new Float64Array([x[0],x[1],x[2],0, y[0],y[1],y[2],0, z[0],z[1],z[2],0, pos[0],pos[1],pos[2],1]);
+  }
+  function applyM(m, x, y, z) {
+    return [m[0]*x + m[4]*y + m[8]*z + m[12], m[1]*x + m[5]*y + m[9]*z + m[13], m[2]*x + m[6]*y + m[10]*z + m[14]];
+  }
+
+  function Geo() { this.p = []; this.i = []; }
+  Geo.prototype.vert = function (x, y, z) { this.p.push(x, y, z); return this.p.length / 3 - 1; };
+  Geo.prototype.tri = function (a, b, c) { this.i.push(a, b, c); };
+  Geo.prototype.quad = function (a, b, c, d) { this.i.push(a, b, c, a, c, d); };
+  Geo.prototype.append = function (src, m) {
+    const base = this.p.length / 3, s = src.positions, ix = src.indices;
+    if (!m) { for (let k = 0; k < s.length; k++) this.p.push(s[k]); }
+    else {
+      for (let k = 0; k < s.length; k += 3) {
+        const q = applyM(m, s[k], s[k + 1], s[k + 2]);
+        this.p.push(q[0], q[1], q[2]);
+      }
+    }
+    for (let k = 0; k < ix.length; k++) this.i.push(ix[k] + base);
+    return this;
+  };
+  Geo.prototype.raw = function () {
+    const n = this.p.length / 3;
+    return { positions: new Float32Array(this.p), indices: n < 65535 ? new Uint16Array(this.i) : new Uint32Array(this.i) };
+  };
+
+  function fixWinding(raw, field) {
+    const p = raw.positions, ix = raw.indices;
+    for (let k = 0; k < ix.length; k += 3) {
+      const a = ix[k] * 3, b = ix[k + 1] * 3, c = ix[k + 2] * 3;
+      const ux = p[b] - p[a], uy = p[b + 1] - p[a + 1], uz = p[b + 2] - p[a + 2];
+      const vx = p[c] - p[b], vy = p[c + 1] - p[b + 1], vz = p[c + 2] - p[b + 2];
+      const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+      if (fx * fx + fy * fy + fz * fz < 1e-18) continue;
+      const n = field((p[a] + p[b] + p[c]) / 3, (p[a + 1] + p[b + 1] + p[c + 1]) / 3, (p[a + 2] + p[b + 2] + p[c + 2]) / 3);
+      if (fx * n[0] + fy * n[1] + fz * n[2] < 0) { const t = ix[k + 1]; ix[k + 1] = ix[k + 2]; ix[k + 2] = t; }
+    }
+    return raw;
+  }
+
+  function smoothNormals(pos, ix) {
+    const n = new Float32Array(pos.length);
+    for (let k = 0; k < ix.length; k += 3) {
+      const a = ix[k] * 3, b = ix[k + 1] * 3, c = ix[k + 2] * 3;
+      const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
+      const vx = pos[c] - pos[b], vy = pos[c + 1] - pos[b + 1], vz = pos[c + 2] - pos[b + 2];
+      const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+      n[a] += fx; n[a + 1] += fy; n[a + 2] += fz;
+      n[b] += fx; n[b + 1] += fy; n[b + 2] += fz;
+      n[c] += fx; n[c + 1] += fy; n[c + 2] += fz;
+    }
+    for (let k = 0; k < n.length; k += 3) {
+      const l = Math.hypot(n[k], n[k + 1], n[k + 2]);
+      if (l > 1e-12) { n[k] /= l; n[k + 1] /= l; n[k + 2] /= l; }
+      else { n[k + 1] = 1; }
+    }
+    return n;
+  }
+
+  function cylSide(rt, rb, h, seg) {
+    const g = new Geo(), b0 = [], b1 = [];
+    for (let s = 0; s < seg; s++) {
+      const a = (s / seg) * TAU, x = Math.cos(a), z = Math.sin(a);
+      b0.push(g.vert(x * rb, 0, z * rb));
+      b1.push(g.vert(x * rt, h, z * rt));
+    }
+    for (let s = 0; s < seg; s++) { const n = (s + 1) % seg; g.quad(b0[s], b1[s], b1[n], b0[n]); }
+    return g.raw();
+  }
+  function capFan(y, r, seg, up) {
+    const g = new Geo(), ring = [];
+    for (let s = 0; s < seg; s++) { const a = (s / seg) * TAU; ring.push(g.vert(Math.cos(a) * r, y, Math.sin(a) * r)); }
+    const c = g.vert(0, y, 0);
+    for (let s = 0; s < seg; s++) {
+      const n = (s + 1) % seg;
+      if (up) g.tri(c, ring[n], ring[s]); else g.tri(c, ring[s], ring[n]);
+    }
+    return g.raw();
+  }
+  function cyl(rt, rb, h, seg, capTop, capBottom) {
+    seg = seg || 32;
+    const g = new Geo();
+    g.append(fixWinding(cylSide(rt, rb, h, seg), function (x, y, z) { return [x, 0, z]; }), matT(0, 0, 0));
+    if (capBottom) g.append(capFan(0, rb, seg, false));
+    if (capTop) g.append(capFan(h, rt, seg, true));
+    return g.raw();
+  }
+  function sphere(r, su, sv) {
+    su = su || 20; sv = sv || 14;
+    const g = new Geo(), rows = [];
+    for (let i = 0; i <= sv; i++) {
+      const phi = (i / sv) * Math.PI, sp = Math.sin(phi), cp = Math.cos(phi), row = [];
+      for (let j = 0; j <= su; j++) {
+        const th = (j / su) * TAU;
+        row.push(g.vert(sp * Math.cos(th) * r, cp * r, sp * Math.sin(th) * r));
+      }
+      rows.push(row);
+    }
+    for (let i = 0; i < sv; i++) for (let j = 0; j < su; j++)
+      g.quad(rows[i][j], rows[i + 1][j], rows[i + 1][j + 1], rows[i][j + 1]);
+    return fixWinding(g.raw(), function (x, y, z) { return norm([x, y, z]); });
+  }
+  function torus(R, r, su, sv, arc) {
+    su = su || 36; sv = sv || 12;
+    const span = arc === undefined ? TAU : arc;
+    const g = new Geo(), rows = [];
+    for (let i = 0; i <= su; i++) {
+      const a = (i / su) * span, ca = Math.cos(a), sa = Math.sin(a), row = [];
+      for (let j = 0; j <= sv; j++) {
+        const b = (j / sv) * TAU, cb = Math.cos(b), sb = Math.sin(b);
+        row.push(g.vert((R + r * cb) * ca, r * sb, (R + r * cb) * sa));
+      }
+      rows.push(row);
+    }
+    for (let i = 0; i < su; i++) for (let j = 0; j < sv; j++)
+      g.quad(rows[i][j], rows[i + 1][j], rows[i + 1][j + 1], rows[i][j + 1]);
+    return fixWinding(g.raw(), function (x, y, z) {
+      const l = Math.hypot(x, z) || 1e-6;
+      return [Math.cos(Math.atan2(z, x)) * (Math.hypot(x, y, z) - R) / r || 0, y / r || 0, Math.sin(Math.atan2(z, x)) * (Math.hypot(x, y, z) - R) / r || 0];
+    });
+  }
+  function tube(pts, rad, seg, capS, capE) {
+    seg = seg || 8;
+    const g = new Geo(), n = pts.length, tans = [], rings = [];
+    for (let i = 0; i < n; i++) tans.push(norm(sub(pts[Math.min(n - 1, i + 1)], pts[Math.max(0, i - 1)])));
+    let N = null;
+    for (let i = 0; i < n; i++) {
+      const t = tans[i];
+      if (!N) { const ref = Math.abs(t[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0]; N = norm(cross(ref, t)); }
+      else {
+        const ax = cross(tans[i - 1], t), s = len(ax), c = clamp(dot(tans[i - 1], t), -1, 1);
+        if (s > 1e-7) N = norm(rotAxis(N, mul(ax, 1 / s), Math.acos(c)));
+      }
+      const B = cross(t, N);
+      const r = typeof rad === 'function' ? rad(i / (n - 1)) : rad;
+      const ring = [];
+      for (let j = 0; j < seg; j++) {
+        const a = (j / seg) * TAU;
+        const d = add(mul(N, Math.cos(a) * r), mul(B, Math.sin(a) * r));
+        ring.push(g.vert(pts[i][0] + d[0], pts[i][ 1 ] + d[1], pts[i][2] + d[2]));
+      }
+      rings.push(ring);
+    }
+    for (let i = 0; i < n - 1; i++) for (let j = 0; j < seg; j++) {
+      const k = (j + 1) % seg;
+      g.quad(rings[i][j], rings[i][k], rings[i + 1][k], rings[i + 1][j]);
+    }
+    function capAt(idx, dir) {
+      const ring = [], y = pts[idx];
+      for (let j = 0; j < seg; j++) {
+        const a = (j / seg) * TAU, d = [Math.cos(a) * 0.0, 0, Math.sin(a) * 0.0];
+        const p = g.p.length / 3;
+        g.p.push(y[0], y[1], y[2]);
+        ring.push(p);
+      }
+      const c = g.vert(y[0], y[1], y[2]);
+      for (let j = 0; j < seg; j++) {
+        const k = (j + 1) % seg;
+        if (dir > 0) g.tri(c, ring[k], ring[j]); else g.tri(c, ring[j], ring[k]);
+      }
+    }
+    if (capS !== false) capAt(0, -1);
+    if (capE !== false) capAt(n - 1, 1);
+    const raw = g.raw();
+    return fixWinding(raw, function (x, y, z) {
+      let best = pts[0], bd = Infinity;
+      for (let i = 0; i < n; i++) {
+        const d = (pts[i][0] - x) ** 2 + (pts[i][1] - y) ** 2 + (pts[i][2] - z) ** 2;
+        if (d < bd) { bd = d; best = pts[i]; }
+      }
+      return norm([x - best[0], y - best[1], z - best[2]]);
+    });
+  }
+
+  const PROFILE = {
+    strap: function (u) { return (0.20 + 0.80 * Math.sin(Math.PI * Math.pow(u, 0.55))) * (1 - Math.pow(u, 8)); },
+    oval:  function (u) { return Math.pow(Math.sin(Math.PI * Math.pow(u, 0.86)), 0.72); },
+    lance: function (u) { return Math.pow(Math.sin(Math.PI * Math.pow(u, 0.92)), 1.15) * (0.55 + 0.45 * u); },
+    heart: function (u) { return Math.pow(Math.sin(Math.PI * Math.pow(u, 0.72)), 0.55) * (0.42 + 0.58 * Math.min(1, u * 3.2)); },
+    round: function (u) { return Math.pow(Math.sin(Math.PI * u), 0.42); }
+  };
+
+  function blade(o) {
+    const len = o.len, segU = o.segU || 10, segV = o.segV === undefined ? 3 : o.segV;
+    const bend = o.bend || 0, twist = o.twist || 0, channel = o.channel || 0, shift = o.shift || 0;
+    const lobes = o.lobes || 0, lobeCount = o.lobeCount || 4, prof = PROFILE[o.profile || 'oval'];
+    const g = new Geo(), grid = [];
+    for (let i = 0; i <= segU; i++) {
+      const u = i / segU, y = len * u, z = len * bend * 0.5 * u * u;
+      const t = norm([0, 1, bend * u]);
+      let R = [1, 0, 0], N = cross(t, R);
+      if (twist) {
+        const a = twist * u, c = Math.cos(a), s = Math.sin(a);
+        const R2 = add(mul(R, c), mul(N, s)), N2 = add(mul(N, c), mul(R, -s));
+        R = R2; N = N2;
+      }
+      let hw = wid(o) * 0.5 * prof(u);
+      if (lobes) hw *= 1 - lobes * 0.5 * (1 - Math.cos(lobeCount * TAU * u));
+      const row = [];
+      for (let j = 0; j <= segV; j++) {
+        const vv = -1 + 2 * j / segV;
+        const p = add(add([0, y, z], mul(R, shift + vv * hw)), mul(N, channel * (vv * vv - 0.33)));
+        row.push(g.vert(p[0], p[1], p[2]));
+      }
+      grid.push(row);
+    }
+    for (let i = 0; i < segU; i++) for (let j = 0; j < segV; j++)
+      g.quad(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1], grid[i][j + 1]);
+    return g.raw();
+    function wid() { return o.wid; }
+  }
+
+  function bezier(p0, p1, p2, p3, t) {
+    const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+    return [
+      a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0],
+      a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1],
+      a * p0[2] + b * p1[2] + c * p2[2] + d * p3[2]
+    ];
+  }
+  function curve(p0, p1, p2, p3, steps) {
+    const out = [];
+    for (let i = 0; i <= steps; i++) out.push(bezier(p0, p1, p2, p3, i / steps));
+    return out;
+  }
+
+  const POT_SPEC = {
+    desk:    { rb: 0.048, rt: 0.052, h: 0.090, rim: 0.008, hook: 0 },
+    floor:   { rb: 0.115, rt: 0.130, h: 0.300, rim: 0.014, hook: 0 },
+    hanging: { rb: 0.075, rt: 0.088, h: 0.115, rim: 0.011, hook: 0.30 }
+  };
+
+  const POT_SIZE = {
+    'snake-plant':     [0.065, 0.090],
+    'zz-plant':        [0.075, 0.100],
+    'echeveria':       [0.060, 0.070],
+    'peperomia':       [0.065, 0.095],
+    'fiddle-leaf-fig': [0.150, 0.300],
+    'bird-of-paradise':[0.160, 0.320],
+    'monstera':        [0.140, 0.280],
+    'dragon-tree':     [0.120, 0.300],
+    'boston-fern':     [0.110, 0.130],
+    'golden-pothos':   [0.100, 0.125],
+    'spider-plant':    [0.090, 0.110],
+    'string-of-pearls':[0.090, 0.110]
+  };
+
+  const FOLIAGE_MATS = { stem: true, leaf: true, accent: true };
+
+  function scaleRaw(raw, cx, cy, cz, s) {
+    const p = raw.positions;
+    for (let i = 0; i < p.length; i += 3) {
+      p[i] = cx + (p[i] - cx) * s;
+      p[i + 1] = cy + (p[i + 1] - cy) * s;
+      p[i + 2] = cz + (p[i + 2] - cz) * s;
+    }
+  }
+
+  function rawBounds(parts) {
+    let min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (const part of parts) {
+      const p = part.raw.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        for (let k = 0; k < 3; k++) {
+          if (p[i + k] < min[k]) min[k] = p[i + k];
+          if (p[i + k] > max[k]) max[k] = p[i + k];
+        }
+      }
+    }
+    return { min: min, max: max };
+  }
+
+  function buildParts(plant, kf) {
+    const base = POT_SPEC[plant.cat];
+    const size = POT_SIZE[plant.id] || [base.rt, base.h];
+    const P = {
+      rb: size[0] * 0.86, rt: size[0], h: size[1],
+      rim: base.rim, hook: base.hook
+    };
+    const batches = {};
+    const put = function (mat, raw, m) {
+      if (!raw.indices.length) return;
+      if (!batches[mat]) batches[mat] = new Geo();
+      batches[mat].append(raw, m || null);
+    };
+    const soilY = P.h - 0.014;
+
+    put('pot', cyl(P.rt * 0.94, P.rt * 0.94, P.h, 34, false, true));
+    put('pot', cyl(P.rt, P.rb, P.h, 34, false, false), matT(0, 0, 0));
+    put('pot', torus(P.rt, P.rim, 34, 10), matT(0, P.h - P.rim * 0.42, 0));
+    put('soil', cyl(P.rt - P.rim * 1.1, P.rt - P.rim * 1.1, 0.012, 26, true, false), matT(0, soilY - 0.012, 0));
+
+    if (P.hook) {
+      const hookY = P.h + P.hook;
+      for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * TAU + 0.4;
+        const top = v(0, hookY, 0);
+        const clip = v(Math.cos(a) * (P.rt + P.rim * 0.6), P.h - 0.006, Math.sin(a) * (P.rt + P.rim * 0.6));
+        const d = norm(sub(top, clip));
+        put('metal', cyl(0.0016, 0.0016, len(sub(top, clip)), 6, true, true), matDir(clip, d, 0));
+      }
+      put('metal', torus(0.016, 0.0022, 24, 8), matT(0, hookY + 0.014, 0));
+    }
+
+    const R = rng(hash(plant.id));
+    const ctx = { P: P, soilY: soilY, R: R, put: put, k: kf };
+    STYLE[plant.style](ctx, plant);
+    const parts = [];
+    for (let i = 0; i < MAT_SLOTS.length; i++) {
+      if (batches[MAT_SLOTS[i]]) parts.push({ mat: MAT_SLOTS[i], raw: batches[MAT_SLOTS[i]].raw() });
+    }
+    if (kf && kf !== 1) {
+      for (const part of parts) if (FOLIAGE_MATS[part.mat]) scaleRaw(part.raw, 0, soilY, 0, kf);
+    }
+    return parts;
+  }
+
+  function heightAt(plant, kf) {
+    const b = rawBounds(buildParts(plant, kf));
+    return b.max[1] - b.min[1];
+  }
+
+  function solveScale(plant) {
+    const target = plant.height;
+    const h1 = heightAt(plant, 1);
+    if (Math.abs(h1 - target) < 0.004) return 1;
+    const h2 = heightAt(plant, 1.22);
+    if (Math.abs(h2 - h1) < 1e-4) return 1;
+    let k = clamp(1 + (target - h1) * (1.22 - 1) / (h2 - h1), 0.7, 1.5);
+    for (let i = 0; i < 3; i++) {
+      const h = heightAt(plant, k);
+      const d = h - target;
+      if (Math.abs(d) < 0.003) break;
+      k = clamp(k * (1 + d / Math.max(h, 0.02) * 0.9), 0.7, 1.5);
+    }
+    return k;
+  }
+
+  const STYLE = {
+    snake: function (c, plant) {
+      const n = 7, r = c.R;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.5;
+        const tilt = 0.05 + (k % 3) * 0.085;
+        const blen = 0.36 + (k % 2) * 0.11 + r() * 0.04;
+        const bend = 0.42 + r() * 0.55;
+        const base = matMul(matT(Math.cos(a) * c.P.rt * 0.42, c.soilY, Math.sin(a) * c.P.rt * 0.42), matMul(matRY(a), matRZ(tilt)));
+        const full = 0.042 + (k % 2) * 0.006;
+        const marg = full * 0.26, centre = full - marg * 2;
+        const tw = (r() - 0.5) * 0.45;
+        c.put('leaf', blade({ len: blen, wid: centre, bend: bend, twist: tw, segU: 9, segV: 2, profile: 'strap', channel: 0.004 }), base);
+        c.put('accent', blade({ len: blen, wid: marg, bend: bend, twist: tw, segU: 9, segV: 1, profile: 'strap', shift: (centre + marg) * 0.5 }), base);
+        c.put('accent', blade({ len: blen, wid: marg, bend: bend, twist: tw, segU: 9, segV: 1, profile: 'strap', shift: -(centre + marg) * 0.5 }), base);
+      }
+    },
+
+    zz: function (c) {
+      const n = 5, r = c.R;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.6;
+        const lean = 0.11 + r() * 0.12;
+        const h = 0.24 + r() * 0.20;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const p0 = v(out[0] * c.P.rt * 0.3, c.soilY, out[2] * c.P.rt * 0.3);
+        const p3 = v(out[0] * lean, c.soilY + h, out[2] * lean);
+        const p1 = v(out[0] * lean * 0.12, c.soilY + h * 0.42, out[2] * lean * 0.12);
+        const p2 = v(out[0] * lean * 0.72, c.soilY + h * 0.80, out[2] * lean * 0.72);
+        const pts = curve(p0, p1, p2, p3, 12);
+        c.put('stem', tube(pts, function (t) { return lerp(0.0075, 0.0035, t); }, 7));
+        const side = v(-out[2], 0, out[0]);
+        for (let j = 1; j <= 6; j++) {
+          const t = j / 7;
+          const at = pts[Math.min(pts.length - 1, Math.round(t * (pts.length - 1)))];
+          const ll = 0.09 * (1 - t * 0.42);
+          for (let sgn = -1; sgn <= 1; sgn += 2) {
+            const dir = norm(add(add(mul(side, sgn * 0.92), v(0, 0.66, 0)), mul(out, 0.25)));
+            const m = matMul(matDir(at, dir, sgn * 0.25), matRX(1.15));
+            c.put('leaf', blade({ len: ll, wid: ll * 0.52, bend: 0.18, segU: 6, segV: 2, profile: 'oval', channel: ll * 0.05 }), m);
+          }
+        }
+      }
+    },
+
+dracaena: function (c) {
+      const r = c.R, h = 1.30 + r() * 0.12;
+      const p0 = v(0, c.soilY, 0), p1 = v(0.01, c.soilY + h * 0.4, 0.01), p2 = v(-0.02, c.soilY + h * 0.75, 0.015), p3 = v(0.015, c.soilY + h, -0.01);
+      const stem = curve(p0, p1, p2, p3, 14);
+      c.put('stem', tube(stem, function (t) { return lerp(0.017, 0.008, t); }, 9));
+      for (let w = 0; w < 3; w++) {
+        const at = stem[Math.round((0.68 + w * 0.14) * (stem.length - 1))];
+        const count = 8 - w * 2;
+        for (let k = 0; k < count; k++) {
+          const a = (k / count) * TAU + w * 0.7 + r() * 0.3;
+          const len = (0.30 - w * 0.04) * (0.7 + r() * 0.6);
+          const outward = 0.5 + r() * 0.5;
+          const dir = norm(v(Math.cos(a) * outward, 0.72 - w * 0.08, Math.sin(a) * outward));
+          const m = matMul(matDir(at, dir, 0), matRX(Math.PI * 0.5));
+          const full = 0.024;
+          c.put('leaf', blade({ len: len, wid: full * 0.7, bend: 0.55 + r() * 0.4, twist: (r() - 0.5) * 0.4, segU: 7, segV: 1, profile: 'strap', channel: 0.003 }), m);
+          c.put('accent', blade({ len: len, wid: full * 0.15, bend: 0.55, segU: 7, segV: 1, profile: 'strap', shift: full * 0.35 }), m);
+          c.put('accent', blade({ len: len, wid: full * 0.15, bend: 0.55, segU: 7, segV: 1, profile: 'strap', shift: -full * 0.35 }), m);
+        }
+      }
+    },
+
+
+    tree: function (c, plant) {
+      const r = c.R, trunkH = 1.16;
+      const p0 = v(0, c.soilY, 0), p1 = v(0.02, c.soilY + trunkH * 0.4, 0.015), p2 = v(-0.03, c.soilY + trunkH * 0.75, 0.02), p3 = v(0.015, c.soilY + trunkH, 0.01);
+      const stem = curve(p0, p1, p2, p3, 14);
+      c.put('stem', tube(stem, function (t) { return lerp(0.022, 0.010, t); }, 9));
+      const leaves = 12;
+      for (let k = 0; k < leaves; k++) {
+        const t = 0.34 + (k / leaves) * 0.64;
+        const at = stem[Math.round(t * (stem.length - 1))];
+        const a = k * 2.39 + r() * 0.5;
+        const scale = 0.74 + 0.40 * Math.sin(Math.PI * Math.pow(t, 0.75)) + r() * 0.1;
+        const petLen = 0.11 + r() * 0.05;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const dir = norm(v(out[0] * 0.85, 0.62 + r() * 0.4, out[2] * 0.85));
+        const tip = add(at, mul(dir, petLen));
+        c.put('stem', tube([at, add(at, mul(dir, petLen * 0.5)), tip], 0.0055, 6));
+        const roll = a + Math.PI * 0.5 + (r() - 0.5) * 0.6;
+        const m = matMul(matDir(tip, dir, roll), matRX(Math.PI * 0.5));
+        c.put(k < 2 ? 'accent' : 'leaf', blade({ len: 0.30 * scale, wid: 0.20 * scale, bend: 0.30 + r() * 0.15, twist: (r() - 0.5) * 0.3, lobes: 0.12, lobeCount: 6, segU: 10, segV: 3, profile: 'oval', channel: 0.024 * scale }), m);
+      }
+    },
+
+    monstera: function (c) {
+      const r = c.R, trunkH = 0.96;
+      const p0 = v(0, c.soilY, 0), p1 = v(0.03, c.soilY + trunkH * 0.4, 0.02), p2 = v(-0.04, c.soilY + trunkH * 0.8, 0.03), p3 = v(0.02, c.soilY + trunkH, 0.0);
+      const stem = curve(p0, p1, p2, p3, 14);
+      c.put('stem', tube(stem, function (t) { return lerp(0.026, 0.013, t); }, 9));
+      c.put('stem', tube([v(-0.13, c.soilY - 0.02, -0.07), v(-0.13, c.soilY + 0.78, -0.07)], 0.015, 8));
+      const leaves = 9;
+      for (let k = 0; k < leaves; k++) {
+        const t = 0.18 + (k / leaves) * 0.80;
+        const at = stem[Math.round(t * (stem.length - 1))];
+        const a = k * 2.399 + r() * 0.4;
+        const scale = 0.76 + 0.38 * Math.sin(Math.PI * Math.pow(t, 0.8)) + r() * 0.1;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const dir = norm(v(out[0] * 0.9, 0.50 + r() * 0.35, out[2] * 0.9));
+        const tip = add(at, mul(dir, 0.14 + r() * 0.05));
+        c.put('stem', tube([at, add(at, mul(dir, 0.08)), tip], 0.0065, 6));
+        const m = matMul(matDir(tip, dir, a + 1.57 + (r() - 0.5) * 0.5), matRX(Math.PI * 0.5));
+        c.put('leaf', blade({ len: 0.32 * scale, wid: 0.30 * scale, bend: 0.26 + r() * 0.12, twist: (r() - 0.5) * 0.25, lobes: 0.44, lobeCount: 5, segU: 12, segV: 4, profile: 'heart', channel: 0.03 * scale }), m);
+      }
+    },
+
+    banana: function (c) {
+      const r = c.R, trunkH = 1.24;
+      const p0 = v(0, c.soilY, 0), p1 = v(0.02, c.soilY + trunkH * 0.5, 0.01), p2 = v(-0.03, c.soilY + trunkH * 0.85, 0.02), p3 = v(0.01, c.soilY + trunkH, 0.0);
+      const stem = curve(p0, p1, p2, p3, 14);
+      c.put('stem', tube(stem, function (t) { return lerp(0.024, 0.014, t); }, 9));
+      const leaves = 9;
+      for (let k = 0; k < leaves; k++) {
+        const t = 0.24 + (k / leaves) * 0.76;
+        const at = stem[Math.round(t * (stem.length - 1))];
+        const a = k * 2.399 + r() * 0.35;
+        const scale = 0.80 + 0.32 * Math.sin(Math.PI * Math.pow(t, 0.7));
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const dir = norm(v(out[0] * 0.8, 0.80 + r() * 0.3, out[2] * 0.8));
+        const tip = add(at, mul(dir, 0.17 + r() * 0.06));
+        c.put('stem', tube([at, add(at, mul(dir, 0.09)), tip], 0.008, 6));
+        const m = matMul(matDir(tip, dir, a + 1.57 + (r() - 0.5) * 0.4), matRX(Math.PI * 0.5));
+        c.put('leaf', blade({ len: 0.48 * scale, wid: 0.17 * scale, bend: 0.42 + r() * 0.2, twist: (r() - 0.5) * 0.3, lobes: 0.5, lobeCount: 9, segU: 13, segV: 3, profile: 'lance', channel: 0.024 * scale }), m);
+      }
+    },
+
+    fern: function (c) {
+      const r = c.R, n = 11, rim = c.P.rt + c.P.rim * 0.9;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.3;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const len = 0.22 + r() * 0.13;
+        const rise = 0.08 + r() * 0.08;
+        const drop = 0.22 + r() * 0.13;
+        const p0 = v(out[0] * rim * 0.55, c.soilY, out[2] * rim * 0.55);
+        const p1 = add(p0, v(out[0] * len * 0.35, rise, out[2] * len * 0.35));
+        const p2 = add(p0, v(out[0] * len * 1.05, rise * 0.85, out[2] * len * 1.05));
+        const p3 = add(p0, v(out[0] * len * 1.25, rise * 0.2 - drop, out[2] * len * 1.25));
+        const pts = curve(p0, p1, p2, p3, 12);
+        c.put('stem', tube(pts, function (t) { return lerp(0.0032, 0.0011, t); }, 5));
+        const side = v(-out[2], 0, out[0]);
+        const pinnae = 10;
+        for (let j = 1; j <= pinnae; j++) {
+          const t = 0.12 + (j / pinnae) * 0.86;
+          const idx = Math.min(pts.length - 1, Math.round(t * (pts.length - 1)));
+          const at = pts[idx];
+          const tan = norm(sub(pts[Math.min(pts.length - 1, idx + 1)], at));
+          const size = 0.058 * Math.sin(Math.PI * Math.pow(t, 0.55)) * (1.05 - t * 0.35);
+          for (let sgn = -1; sgn <= 1; sgn += 2) {
+            const dir = norm(add(add(mul(side, sgn * 0.92), mul(tan, 0.35)), v(0, -0.18, 0)));
+            const m = matMul(matDir(at, dir, 0), matRX(Math.PI * 0.5));
+            c.put(t > 0.58 ? 'accent' : 'leaf', blade({ len: size, wid: size * 0.62, bend: 0.3, segU: 4, segV: 1, profile: 'oval', channel: 0.002 }), m);
+          }
+        }
+      }
+    },
+
+    trailing: function (c) {
+      const r = c.R, n = 5, rim = c.P.rt + c.P.rim * 0.7;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.4;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const side = v(-out[2], 0, out[0]);
+        const spread = 0.10 + r() * 0.16;
+        const drop = 0.42 + r() * 0.40;
+        const p0 = v(out[0] * c.P.rt * 0.3, c.soilY + 0.02, out[2] * c.P.rt * 0.3);
+        const p1 = v(out[0] * rim * 0.9, c.soilY + 0.14, out[2] * rim * 0.9);
+        const p2 = add(v(out[0] * (rim + spread), c.soilY + 0.04, out[2] * (rim + spread)), mul(side, spread * 0.5 * (r() > 0.5 ? 1 : -1)));
+        const p3 = add(v(out[0] * (rim + spread * 0.7), c.soilY - drop, out[2] * (rim + spread * 0.7)), mul(side, spread * 0.35));
+        const pts = curve(p0, p1, p2, p3, 20);
+        c.put('stem', tube(pts, 0.0035, 5));
+        const leaves = 12;
+        for (let j = 1; j <= leaves; j++) {
+          const t = 0.08 + (j / leaves) * 0.90;
+          const idx = Math.min(pts.length - 1, Math.round(t * (pts.length - 1)));
+          const at = pts[idx];
+          const tan = norm(sub(pts[Math.min(pts.length - 1, idx + 1)], at));
+          const sgn = j % 2 ? 1 : -1;
+          const size = 0.068 * (1.05 - t * 0.25);
+          const dir = norm(add(add(mul(side, sgn * 0.85), mul(tan, 0.45)), v(0, 0.25, 0)));
+          const m = matMul(matDir(at, dir, sgn * 0.4), matRX(Math.PI * 0.5));
+          c.put(j % 3 === 0 ? 'accent' : 'leaf', blade({ len: size, wid: size * 0.92, bend: 0.3, segU: 7, segV: 2, profile: 'heart', channel: 0.004 }), m);
+        }
+      }
+    },
+
+    spider: function (c) {
+      const r = c.R, n = 10, rim = c.P.rt + c.P.rim * 0.7;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.25;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const side = v(-out[2], 0, out[0]);
+        const len = 0.15 + r() * 0.12;
+        const drop = 0.11 + r() * 0.17;
+        const p0 = v(out[0] * rim * 0.5, c.soilY, out[2] * rim * 0.5);
+        const p1 = add(p0, v(out[0] * len * 0.5, 0.05, out[2] * len * 0.5));
+        const p2 = add(p0, v(out[0] * len * 1.15, 0.02 - drop * 0.4, out[2] * len * 1.15));
+        const p3 = add(p0, v(out[0] * len * 1.05, -drop, out[2] * len * 1.05));
+        const pts = curve(p0, p1, p2, p3, 14);
+        c.put('stem', tube(pts, function (t) { return lerp(0.0028, 0.0012, t); }, 5));
+        for (let j = 1; j <= 9; j++) {
+          const t = 0.14 + (j / 9) * 0.84;
+          const idx = Math.min(pts.length - 1, Math.round(t * (pts.length - 1)));
+          const at = pts[idx];
+          const tan = norm(sub(pts[Math.min(pts.length - 1, idx + 1)], at));
+          const sgn = j % 2 ? 1 : -1;
+          const size = 0.08 * Math.sin(Math.PI * Math.pow(t, 0.7)) + 0.014;
+          const dir = norm(add(mul(side, sgn * 0.95), v(0, -0.1, 0)));
+          const m = matMul(matDir(at, dir, 0), matRX(Math.PI * 0.5));
+          c.put('leaf', blade({ len: size, wid: size * 0.26, bend: 0.55, segU: 6, segV: 1, profile: 'lance', channel: 0.002 }), m);
+        }
+        if (k % 3 === 0) {
+          const tip = pts[pts.length - 1];
+          c.put('accent', sphere(0.013, 8, 6), matT(tip[0], tip[1] - 0.013, tip[2]));
+        }
+      }
+    },
+
+    pearls: function (c) {
+      const r = c.R, n = 4, rim = c.P.rt + c.P.rim * 0.7;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * TAU + r() * 0.4;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const side = v(-out[2], 0, out[0]);
+        const spread = 0.08 + r() * 0.12;
+        const drop = 0.34 + r() * 0.32;
+        const p0 = v(out[0] * c.P.rt * 0.3, c.soilY + 0.02, out[2] * c.P.rt * 0.3);
+        const p1 = v(out[0] * rim * 0.9, c.soilY + 0.13, out[2] * rim * 0.9);
+        const p2 = add(v(out[0] * (rim + spread), c.soilY + 0.02, out[2] * (rim + spread)), mul(side, spread * 0.4));
+        const p3 = add(v(out[0] * (rim + spread * 0.6), c.soilY - drop, out[2] * (rim + spread * 0.6)), mul(side, spread * 0.3));
+        const pts = curve(p0, p1, p2, p3, 18);
+        c.put('stem', tube(pts, 0.0022, 4, false, false));
+        const count = 18;
+        for (let j = 0; j < count; j++) {
+          const t = 0.10 + (j / count) * 0.90;
+          const idx = Math.min(pts.length - 1, Math.round(t * (pts.length - 1)));
+          const at = pts[idx];
+          const tan = norm(sub(pts[Math.min(pts.length - 1, idx + 1)], at));
+          const tan2 = norm(sub(pts[Math.min(pts.length - 1, idx + 2)], pts[Math.min(pts.length - 1, idx + 1)]));
+          const rad = norm(cross(tan, tan2));
+          const bin = cross(rad, tan);
+          const ph = j * 1.9;
+          const off = add(mul(rad, Math.cos(ph) * 0.012), mul(bin, Math.sin(ph) * 0.012));
+          c.put(j % 7 === 0 ? 'accent' : 'leaf', sphere(0.0135, 8, 6), matT(at[0] + off[0], at[1] + off[1], at[2] + off[2]));
+        }
+      }
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * TAU;
+        c.put('leaf', sphere(0.017, 8, 6), matT(Math.cos(a) * 0.032, c.soilY + 0.032, Math.sin(a) * 0.032));
+      }
+    },
+
+    succulent: function (c) {
+      const r = c.R;
+      const rings = [
+        { n: 12, len: 0.150, tilt: 0.78, wid: 0.078, y: 0.004 },
+        { n: 9, len: 0.120, tilt: 0.52, wid: 0.062, y: 0.016 },
+        { n: 6, len: 0.085, tilt: 0.30, wid: 0.046, y: 0.028 },
+        { n: 4, len: 0.050, tilt: 0.10, wid: 0.030, y: 0.038 }
+      ];
+      rings.forEach(function (ring, ri) {
+        for (let k = 0; k < ring.n; k++) {
+          const a = (k / ring.n) * TAU + ri * 0.5 + r() * 0.2;
+          const out = v(Math.cos(a), 0, Math.sin(a));
+          const dir = norm(v(out[0] * Math.sin(ring.tilt), Math.cos(ring.tilt), out[2] * Math.sin(ring.tilt)));
+          const m = matMul(matDir(v(out[0] * 0.012, c.soilY + ring.y, out[2] * 0.012), dir, a + Math.PI * 0.5), matRX(Math.PI * 0.5));
+          c.put(ri === 3 ? 'accent' : 'leaf', blade({ len: ring.len, wid: ring.wid, bend: 0.12, segU: 8, segV: 3, profile: 'round', channel: ring.wid * 0.16 }), m);
+        }
+      });
+    },
+
+    peperomia: function (c) {
+      const r = c.R;
+      const trunk = curve(v(0, c.soilY, 0), v(0.012, c.soilY + 0.09, 0.012), v(-0.012, c.soilY + 0.16, 0.0), v(0.006, c.soilY + 0.21, 0.006), 10);
+      c.put('stem', tube(trunk, function (t) { return lerp(0.011, 0.007, t); }, 8));
+      const leaves = 14;
+      for (let k = 0; k < leaves; k++) {
+        const t = 0.22 + (k / leaves) * 0.78;
+        const at = trunk[Math.round(t * (trunk.length - 1))];
+        const a = k * 2.399 + r() * 0.4;
+        const out = v(Math.cos(a), 0, Math.sin(a));
+        const dir = norm(v(out[0] * 0.9, 0.55 + r() * 0.4, out[2] * 0.9));
+        const tip = add(at, mul(dir, 0.05 + r() * 0.03));
+        c.put('stem', tube([at, add(at, mul(dir, 0.03)), tip], 0.0035, 5));
+        const size = 0.082 * (0.75 + r() * 0.45) * (0.8 + 0.4 * Math.sin(Math.PI * t));
+        const m = matMul(matDir(tip, dir, a + 1.57 + (r() - 0.5) * 0.5), matRX(Math.PI * 0.5));
+        c.put(k % 4 === 0 ? 'accent' : 'leaf', blade({ len: size, wid: size * 0.86, bend: 0.2, segU: 8, segV: 3, profile: 'oval', channel: size * 0.1 }), m);
+      }
+    }
+  };
+
+  const MAT_SLOTS = ['pot', 'soil', 'stem', 'leaf', 'accent', 'metal'];
+  const METAL_COLOR = '#8C939D';
+
+  function toBase64(bytes) {
+    let s = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    return btoa(s);
+  }
+
+  function buildGLTF(plant) {
+    const kf = solveScale(plant);
+    const parts = buildParts(plant, kf);
+
+    const bb = rawBounds(parts);
+    const lift = bb.min[1] < 0 ? -bb.min[1] + 0.004 : 0;
+    if (lift) {
+      for (const part of parts) {
+        const p = part.raw.positions;
+        for (let i = 1; i < p.length; i += 3) p[i] += lift;
+      }
+    }
+
+    const views = [], accessors = [], prims = [], materials = [];
+    const chunks = [];
+    let off = 0;
+
+    function view(ta, target) {
+      const pad = (4 - (off % 4)) % 4;
+      if (pad) { chunks.push(new Uint8Array(pad)); off += pad; }
+      const u8 = new Uint8Array(ta.buffer, ta.byteOffset, ta.byteLength);
+      chunks.push(u8);
+      const bv = { buffer: 0, byteOffset: off, byteLength: u8.byteLength };
+      if (target) bv.target = target;
+      views.push(bv);
+      off += u8.byteLength;
+      return views.length - 1;
+    }
+    function accessor(ta, comp, type, count, target, bounds) {
+      const bv = view(ta, target);
+      const a = { bufferView: bv, componentType: comp, count: count, type: type };
+      if (bounds) {
+        a.min = [Infinity, Infinity, Infinity];
+        a.max = [-Infinity, -Infinity, -Infinity];
+        for (let i = 0; i < ta.length; i += 3) {
+          for (let k = 0; k < 3; k++) {
+            if (ta[i + k] < a.min[k]) a.min[k] = ta[i + k];
+            if (ta[i + k] > a.max[k]) a.max[k] = ta[i + k];
+          }
+        }
+      }
+      accessors.push(a);
+      return accessors.length - 1;
+    }
+
+    const P = plant.palette;
+    const baseMaterials = [
+      { name: 'Pot', color: POT_COLORS[0].hex, rough: POT_COLORS[0].rough, metal: 0 },
+      { name: 'Soil', color: P.soil, rough: 0.96, metal: 0 },
+      { name: 'Stem', color: P.stem, rough: 0.72, metal: 0 },
+      { name: 'Leaf', color: P.leaf, rough: 0.52, metal: 0 },
+      { name: 'Accent', color: P.accent, rough: 0.5, metal: 0 },
+      { name: 'Metal', color: METAL_COLOR, rough: 0.34, metal: 0.65 }
+    ];
+
+    for (const m of baseMaterials) {
+      materials.push({
+        name: m.name,
+        doubleSided: m.name === 'Leaf' || m.name === 'Accent',
+        pbrMetallicRoughness: {
+          baseColorFactor: srgbToLinear(m.color).concat([1]),
+          metallicFactor: m.metal,
+          roughnessFactor: m.rough
+        }
+      });
+    }
+    POT_COLORS.forEach(function (pc) {
+      materials.push({
+        name: 'Pot · ' + pc.label,
+        doubleSided: false,
+        pbrMetallicRoughness: {
+          baseColorFactor: srgbToLinear(pc.hex).concat([1]),
+          metallicFactor: 0,
+          roughnessFactor: pc.rough
+        }
+      });
+    });
+
+    const potVariantBase = baseMaterials.length;
+
+    for (const part of parts) {
+      const raw = part.raw;
+      const pos = raw.positions;
+      const nrm = smoothNormals(pos, raw.indices);
+      const matIndex = MAT_SLOTS.indexOf(part.mat);
+      const pa = accessor(pos, 5126, 'VEC3', pos.length / 3, 34962, true);
+      const na = accessor(nrm, 5126, 'VEC3', nrm.length / 3, 34962, false);
+      const small = pos.length / 3 < 65535;
+      const ia = accessor(raw.indices, small ? 5123 : 5125, 'SCALAR', raw.indices.length, 34963, false);
+      prims.push({ mode: 4, attributes: { POSITION: pa, NORMAL: na }, indices: ia, material: matIndex });
+    }
+
+    const potSlot = MAT_SLOTS.indexOf('pot');
+    const defaults = prims.map(function (p) { return p.material; });
+    const variants = POT_COLORS.map(function (pc, i) {
+      return {
+        name: pc.id,
+        materials: defaults.map(function (m) { return m === potSlot ? potVariantBase + i : m; })
+      };
+    });
+
+    const total = new Uint8Array(off);
+    let o2 = 0;
+    for (const c of chunks) { total.set(c, o2); o2 += c.length; }
+
+    const json = {
+      asset: { version: '2.0', generator: 'Execflora Procedural Plant Studio' },
+      extensionsUsed: ['KHR_materials_variants'],
+      extensions: { KHR_materials_variants: { variants: variants } },
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes: [{ mesh: 0, name: plant.name }],
+      meshes: [{ name: plant.name, primitives: prims }],
+      materials: materials,
+      accessors: accessors,
+      bufferViews: views,
+      buffers: [{ byteLength: off }]
+    };
+    return { json: json, bin: total, kf: kf };
+  }
+
+  function buildGLB(plant) {
+    const built = buildGLTF(plant);
+    const jsonBytes = new TextEncoder().encode(JSON.stringify(built.json));
+    const jsonPad = (4 - (jsonBytes.length % 4)) % 4;
+    const binPad = (4 - (built.bin.length % 4)) % 4;
+    const total = 12 + 8 + jsonBytes.length + jsonPad + 8 + built.bin.length + binPad;
+    const buf = new ArrayBuffer(total);
+    const dv = new DataView(buf);
+    const u8 = new Uint8Array(buf);
+    dv.setUint32(0, 0x46546C67, true);
+    dv.setUint32(4, 2, true);
+    dv.setUint32(8, total, true);
+    dv.setUint32(12, jsonBytes.length + jsonPad, true);
+    dv.setUint32(16, 0x4E4F534A, true);
+    u8.set(jsonBytes, 20);
+    for (let i = 0; i < jsonPad; i++) u8[20 + jsonBytes.length + i] = 0x20;
+    const bh = 20 + jsonBytes.length + jsonPad;
+    dv.setUint32(bh, built.bin.length + binPad, true);
+    dv.setUint32(bh + 4, 0x004E4942, true);
+    u8.set(built.bin, bh + 8);
+    return buf;
+  }
+
+  const urlCache = [];
+
+  function modelSrc(plant) {
+    if (CONFIG.modelBase) return CONFIG.modelBase.replace(/\/+$/, '') + '/' + plant.id + '.glb';
+    const url = URL.createObjectURL(new Blob([buildGLB(plant)], { type: 'model/gltf-binary' }));
+    urlCache.push(url);
+    while (urlCache.length > 3) URL.revokeObjectURL(urlCache.shift());
+    return url;
+  }
+
+  function thumbSVG(plant) {
+    const r = rng(hash(plant.id) ^ 0x9e37);
+    const W = 2 * Math.PI * 3 * Math.PI;
+    const kind = {
+      snake: { n: 7, len: 30, wid: 4.5, bend: 0.5, spread: 0.16 },
+      zz: { n: 5, len: 24, wid: 8, bend: 0.35, spread: 0.55 },
+      succulent: { n: 9, len: 13, wid: 8, bend: 0.15, spread: 1.05 },
+      peperomia: { n: 6, len: 16, wid: 10, bend: 0.3, spread: 0.75 },
+      tree: { n: 5, len: 21, wid: 13, bend: 0.3, spread: 0.7 },
+      monstera: { n: 5, len: 22, wid: 15, bend: 0.28, spread: 0.75 },
+      banana: { n: 5, len: 25, wid: 9, bend: 0.45, spread: 0.6 },
+      dracaena: { n: 8, len: 20, wid: 4, bend: 0.6, spread: 0.9 },
+      fern: { n: 7, len: 19, wid: 4, bend: 0.75, spread: 1.0 },
+      trailing: { n: 4, len: 26, wid: 8, bend: 0.5, spread: 0.35 },
+      spider: { n: 6, len: 18, wid: 4, bend: 0.7, spread: 1.1 },
+      pearls: { n: 4, len: 24, wid: 3, bend: 0.4, spread: 0.3 }
+    }[plant.style] || { n: 5, len: 20, wid: 8, bend: 0.4, spread: 0.7 };
+
+    const cx = 32, baseY = 50;
+    const potW = plant.cat === 'floor' ? 26 : plant.cat === 'hanging' ? 20 : 16;
+    const potH = plant.cat === 'floor' ? 13 : plant.cat === 'hanging' ? 10 : 8;
+
+    function leafPath(a, len, wid, bend) {
+      const N = 9, L = [], R = [];
+      for (let i = 0; i <= N; i++) {
+        const u = i / N;
+        const px = cx + Math.sin(a) * len * u;
+        const py = baseY - Math.cos(a) * len * u + bend * len * u * u * 0.5;
+        const dx = Math.sin(a), dy = -Math.cos(a) + bend * len * 2 * u * 0.5;
+        const l = Math.hypot(dx, dy) || 1;
+        const hw = (wid * 0.5) * Math.sin(Math.PI * Math.pow(u, 0.62));
+        L.push((px - (dy / l) * hw).toFixed(2) + ',' + (py + (dx / l) * hw).toFixed(2));
+        R.push((px + (dy / l) * hw).toFixed(2) + ',' + (py - (dx / l) * hw).toFixed(2));
+      }
+      return 'M' + L.join(' L') + ' L' + R.reverse().join(' L') + ' Z';
+    }
+
+    let paths = '';
+    for (let i = 0; i < kind.n; i++) {
+      const a = -1.35 + (i / (kind.n - 1 || 1)) * 2.7 + (r() - 0.5) * 0.16;
+      const s = 0.78 + r() * 0.42;
+      const col = i % 4 === 3 ? plant.palette.accent : plant.palette.leaf;
+      paths += '<path d="' + leafPath(a, kind.len * s, kind.wid * s, kind.bend) + '" fill="' + col + '" opacity="' + (0.82 + r() * 0.18).toFixed(2) + '"/>';
+    }
+
+    const hangLine = plant.cat === 'hanging'
+      ? '<path d="M32 4 L32 14" stroke="' + plant.palette.stem + '" stroke-width="1.2" fill="none"/>'
+      : '';
+
+    return '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><radialGradient id="g' + plant.id + '" cx="50%" cy="30%" r="70%">' +
+      '<stop offset="0%" stop-color="#ecfdf5"/><stop offset="100%" stop-color="#f8fafc"/></radialGradient></defs>' +
+      '<rect width="64" height="64" rx="14" fill="url(#g' + plant.id + ')"/>' +
+      hangLine + paths +
+      '<path d="M' + (cx - potW / 2) + ' ' + baseY + ' h' + potW + ' l-' + (potW * 0.16) + ' ' + potH + ' h-' + (potW * 0.68) + ' Z" fill="#B45309" opacity=".9"/>' +
+      '<rect x="' + (cx - potW / 2 - 1) + '" y="' + (baseY - 2.5) + '" width="' + (potW + 2) + '" height="3.4" rx="1.7" fill="#8A3F07"/>' +
+      '</svg>';
+  }
+
+  return {
+    TAU, CONFIG, POT_COLORS, CATEGORIES, LIGHT_LEVELS, LIGHT_COPY, PLANTS, POT_SIZE,
+    toBase64, buildGLTF, buildGLB, buildParts, rawBounds, modelSrc, thumbSVG, srgbToLinear,
+    util: { v, add, sub, mul, dot, cross, len, norm, clamp, lerp, rng, hash }
+  };
+})();
+</script>
+
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  const X = window.__execflora;
+  const { POT_COLORS, CATEGORIES, LIGHT_LEVELS, LIGHT_COPY, PLANTS } = X;
+  const $ = function (s, r) { return (r || document).querySelector(s); };
+  const el = function (tag, cls, html) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html !== undefined) n.innerHTML = html;
+    return n;
+  };
+  const money = function (n) { return X.CONFIG.currency + n.toLocaleString('en-US'); };
+  const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
+
+  const viewer = $('#viewer');
+  const state = {
+    plantId: PLANTS[0].id,
+    pot: X.CONFIG.defaultPot,
+    cat: 'all',
+    light: 'all',
+    query: '',
+    sort: 'featured',
+    sheetOpen: false,
+    present: false,
+    navOpen: window.innerWidth >= 1024,
+    spin: true,
+    arSupported: false,
+    arMode: 'preview'
+  };
+
+  if (window.innerWidth < 1024) document.body.classList.add('nav-closed');
+
+  const thumbCache = {};
+  function thumb(plant, cls) {
+    if (!thumbCache[plant.id]) thumbCache[plant.id] = X.thumbSVG(plant);
+    return '<span class="' + cls + '">' + thumbCache[plant.id] + '</span>';
+  }
+
+  function catLabel(id) {
+    const c = CATEGORIES.find(function (x) { return x.id === id; });
+    return c ? c.label : id;
+  }
+  function catIcon(id) {
+    const s = {
+      desk: '<path d="M4 17h16M6 17v2M18 17v2M8 14h8M10 14v-3h4v3"/>',
+      floor: '<path d="M8 20h8M9 20v-4h6v4M12 16V9"/><path d="M12 9c0-2 1.4-3.4 3.6-3.6C15.4 7.4 14 9 12 9Z"/><path d="M12 11c0-1.8-1.3-3-3.2-3.2C8.9 9.7 10.2 11 12 11Z"/>',
+      hanging: '<path d="M12 3v4"/><circle cx="12" cy="6" r="1.4"/><path d="M8 10h8l-1.2 5.4a1 1 0 0 1-1 .8h-3.6a1 1 0 0 1-1-.8Z"/><path d="M10 17c0 2 .6 3 1.4 4M14 17c0 2-.6 3-1.4 4"/>'
+    };
+    return '<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (s[id] || '') + '</svg>';
+  }
+
+  function lightIcon(level) {
+    const s = {
+      low: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/>',
+      medium: '<path d="M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3 8.5 8.5M15.5 15.5l2.2 2.2M17.7 6.3 15.5 8.5M8.5 15.5l-2.2 2.2"/><circle cx="12" cy="12" r="3"/>',
+      bright: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/>'
+    };
+    return '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (s[level] || '') + '</svg>';
+  }
+
+  function filtered() {
+    let list = PLANTS.filter(function (p) {
+      if (state.cat !== 'all' && p.cat !== state.cat) return false;
+      if (state.light !== 'all' && p.light !== state.light) return false;
+      if (state.query) {
+        const q = state.query.toLowerCase();
+        const hay = (p.name + ' ' + p.botanical + ' ' + p.tags.join(' ') + ' ' + catLabel(p.cat)).toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+    const rank = { low: 0, medium: 1, bright: 2 };
+    if (state.sort === 'price-asc') list = list.slice().sort(function (a, b) { return a.price - b.price; });
+    else if (state.sort === 'price-desc') list = list.slice().sort(function (a, b) { return b.price - a.price; });
+    else if (state.sort === 'height-asc') list = list.slice().sort(function (a, b) { return a.height - b.height; });
+    else list = list.slice().sort(function (a, b) { return rank[a.light] - rank[b.light] || a.price - b.price; });
+    return list;
+  }
+
+  function renderChips() {
+    const cc = $('#catChips');
+    cc.innerHTML = '';
+    CATEGORIES.forEach(function (c) {
+      const b = el('button', 'shrink-0 rounded-full border px-3 py-1.5 text-[11.5px] font-600 transition active:scale-95',
+        catIcon(c.id === 'all' ? 'desk' : c.id) + '<span class="ml-1">' + c.short + '</span>');
+      const on = state.cat === c.id;
+      b.className += on
+        ? ' border-brand-600 bg-brand-600 text-white shadow-soft'
+        : ' border-slate-200 bg-white text-slate-500 hover:border-brand-300 hover:text-brand-700';
+      b.onclick = function () { state.cat = c.id; renderChips(); renderCatalog(); };
+      cc.appendChild(b);
+    });
+
+    const lc = $('#lightChips');
+    lc.innerHTML = '';
+    const opts = [{ id: 'all', label: 'Any light' }].concat(LIGHT_LEVELS.map(function (l) { return { id: l.id, label: l.label }; }));
+    opts.forEach(function (o) {
+      const on = state.light === o.id;
+      const b = el('button', 'shrink-0 rounded-md px-2 py-1 text-[11px] font-600 transition active:scale-95',
+        o.id === 'all' ? o.label : lightIcon(o.id).replace('h-4 w-4', 'inline h-3 w-3 align-[-1px]') + '<span class="ml-0.5">' + o.label.replace(' light', '') + '</span>');
+      b.className += on ? ' bg-brand-100 text-brand-800' : ' bg-slate-100 text-slate-500 hover:bg-brand-50';
+      b.onclick = function () { state.light = o.id; renderChips(); renderCatalog(); };
+      lc.appendChild(b);
+    });
+  }
+
+  function renderCatalog() {
+    const host = $('#catalog');
+    const list = filtered();
+    $('#resultCount').textContent = list.length;
+    host.innerHTML = '';
+
+    if (!list.length) {
+      host.appendChild(el('div', 'px-2 py-16 text-center',
+        '<div class="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-300"><svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2M8.5 8.5l5 5"/></svg></div>' +
+        '<p class="mt-3 text-sm font-600 text-slate-700">No matches</p>' +
+        '<p class="mt-1 text-xs text-slate-400">Try a botanical name like “pothos”.</p>'));
+      return;
+    }
+
+    list.forEach(function (p) {
+      const on = p.id === state.plantId;
+      const card = el('button', 'group relative flex w-full items-center gap-3 rounded-2xl p-2 text-left transition active:scale-[.99]');
+      card.className += on
+        ? ' bg-brand-50 ring-1 ring-brand-600/25'
+        : ' hover:bg-slate-50 ring-1 ring-transparent';
+      card.innerHTML =
+        thumb(p, 'h-14 w-14 shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-900/5 ' + (on ? '' : 'opacity-95')) +
+        '<span class="min-w-0 flex-1">' +
+          '<span class="flex items-baseline gap-2">' +
+            '<span class="truncate text-[13.5px] font-600 leading-tight text-slate-800">' + esc(p.name) + '</span>' +
+            '<span class="ml-auto shrink-0 text-[12.5px] font-700 text-brand-700">' + money(p.price) + '</span>' +
+          '</span>' +
+          '<span class="mt-0.5 block truncate text-[11px] italic leading-tight text-slate-400">' + esc(p.botanical) + '</span>' +
+          '<span class="mt-1.5 flex items-center gap-1.5">' +
+            '<span class="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-600 text-slate-500">' + catIcon(p.cat).replace('h-3.5 w-3.5', 'h-3 w-3') + catLabel(p.cat) + '</span>' +
+            '<span class="inline-flex items-center gap-1 rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-600 text-brand-700">' + Math.round(p.height * 100) + ' cm</span>' +
+          '</span>' +
+        '</span>';
+      if (on) card.innerHTML += '<span class="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-brand-600"></span>';
+      card.onclick = function () { select(p.id); };
+      host.appendChild(card);
+    });
+  }
+
+  function renderPotRow() {
+    const row = $('#potRow');
+    row.innerHTML = '';
+    POT_COLORS.forEach(function (c) {
+      const on = state.pot === c.id;
+      const b = el('button', 'group relative h-9 w-9 rounded-xl transition active:scale-95', '');
+      b.innerHTML =
+        '<span class="absolute inset-0 rounded-xl shadow-inner ring-1 ring-slate-900/10" style="background:' + c.chip + '"></span>' +
+        (on ? '<span class="absolute inset-0 rounded-xl ring-2 ring-brand-600 ring-offset-1"></span>' : '') +
+        '<span class="absolute inset-0 rounded-xl bg-black/0 transition group-hover:bg-black/5"></span>';
+      b.title = c.label;
+      b.setAttribute('aria-label', 'Pot finish: ' + c.label);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.onclick = function () { setPot(c.id); };
+      row.appendChild(b);
+    });
+  }
+
+  function setPot(id) {
+    state.pot = id;
+    renderPotRow();
+    try { viewer.variantName = id; } catch (e) { }
+    toast(POT_COLORS.filter(function (c) { return c.id === id; })[0].label + ' pot applied', 'pot');
+  }
+
+  function specRow(icon, label, value, note, tint) {
+    return '<div class="flex items-start gap-2.5">' +
+      '<span class="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ' + (tint || 'bg-brand-50 text-brand-700') + '">' + icon + '</span>' +
+      '<span class="min-w-0">' +
+        '<span class="block text-[10px] font-600 uppercase tracking-[.09em] text-slate-400">' + label + '</span>' +
+        '<span class="block text-[12.5px] font-600 leading-snug text-slate-700">' + esc(value) + '</span>' +
+        (note ? '<span class="mt-0.5 block text-[11px] leading-snug text-slate-400">' + esc(note) + '</span>' : '') +
+      '</span></div>';
+  }
+
+  function buildCard(plant, mobile) {
+    const light = LIGHT_COPY[plant.light];
+    const rows =
+      specRow(lightIcon(plant.light), 'Light level', light.label, light.note, 'bg-amber-50 text-amber-600') +
+      specRow('<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3.5s6 6.2 6 10a6 6 0 0 1-12 0c0-3.8 6-10 6-10Z"/></svg>', 'Watering', plant.water, plant.care, 'bg-sky-50 text-sky-600') +
+      specRow('<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 8h18v8H3z"/><path d="M7 8v3M12 8v4M17 8v3"/></svg>', 'Dimensions', plant.dims, 'Modelled at true ' + Math.round(plant.height * 100) + ' cm scale in AR.', 'bg-slate-100 text-slate-500') +
+      specRow('<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 4l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path d="M9 21v-6h6v6"/></svg>', 'Placement · office', '', plant.office, 'bg-brand-50 text-brand-700') +
+      specRow('<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1Z"/><path d="M10 21v-5h4v5"/></svg>', 'Placement · home', '', plant.home, 'bg-emerald-50 text-emerald-700');
+
+    return rows;
+  }
+
+  function renderSheet() {
+    const plant = PLANTS.find(function (p) { return p.id === state.plantId; });
+    const host = $('#cardHost');
+
+    if (window.innerWidth >= 640) {
+      host.className = 'w-full sm:w-auto';
+      host.innerHTML =
+        '<div class="fade-up hidden rounded-2xl bg-white/92 p-3.5 shadow-lift ring-1 ring-slate-900/5 backdrop-blur-md sm:block sm:w-[19.5rem]">' +
+          '<div class="mb-2.5 flex items-center gap-2 border-b border-slate-100 pb-2.5">' +
+            '<span class="text-[10px] font-700 uppercase tracking-[.14em] text-brand-700">Spec sheet</span>' +
+            '<span class="ml-auto rounded-md bg-brand-900 px-2 py-0.5 text-[11.5px] font-700 text-brand-50">' + money(plant.price) + '</span>' +
+          '</div>' +
+          '<div class="max-h-[52vh] space-y-2.5 overflow-y-auto overscroll-contain pr-0.5">' + buildCard(plant) + '</div>' +
+        '</div>';
+      return;
+    }
+
+    host.className = 'w-full';
+    const open = state.sheetOpen;
+    host.innerHTML =
+      '<div class="sheet-shadow rounded-t-3xl bg-white/95 ring-1 ring-slate-900/5 backdrop-blur-md ' + (open ? 'fade-up' : '') + '">' +
+        '<button id="sheetToggle" class="flex w-full items-center gap-3 px-4 pb-2.5 pt-2.5 text-left active:bg-slate-50">' +
+          '<span class="mx-auto mb-1 h-1 w-9 shrink-0 rounded-full bg-slate-300"></span>' +
+        '</button>' +
+        '<div id="sheetPeek" class="flex items-center gap-3 px-4 pb-3">' +
+          thumb(plant, 'h-11 w-11 shrink-0 overflow-hidden rounded-xl ring-1 ring-slate-900/5') +
+          '<span class="min-w-0 flex-1">' +
+            '<span class="block truncate text-[13.5px] font-600 leading-tight text-slate-800">' + esc(plant.name) + '</span>' +
+            '<span class="mt-0.5 block truncate text-[11px] leading-tight text-slate-400">' + esc(plant.dims) + '</span>' +
+          '</span>' +
+          '<span class="shrink-0 text-[14px] font-700 text-brand-700">' + money(plant.price) + '</span>' +
+          '<span id="sheetChevron" class="shrink-0 text-slate-400 transition-transform ' + (open ? 'rotate-180' : '') + '">' +
+            '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>' +
+          '</span>' +
+        '</div>' +
+        '<div id="sheetBody" class="' + (open ? '' : 'hidden') + '">' +
+          '<div class="max-h-[46vh] space-y-3 overflow-y-auto overscroll-contain border-t border-slate-100 px-4 py-3 pb-safe">' +
+            '<div class="mb-1 flex items-center gap-2"><span class="text-[10px] font-700 uppercase tracking-[.14em] text-brand-700">Spec sheet</span></div>' +
+            buildCard(plant) +
+            '<div class="flex flex-wrap gap-1.5 pt-1">' + plant.tags.map(function (t) {
+              return '<span class="rounded-md bg-slate-100 px-2 py-0.5 text-[10.5px] font-600 text-slate-500">#' + t + '</span>';
+            }).join('') + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    const tg = $('#sheetToggle');
+    const peek = $('#sheetPeek');
+    const flip = function () { state.sheetOpen = !state.sheetOpen; renderSheet(); };
+    if (tg) tg.onclick = flip;
+    if (peek) peek.onclick = function (e) { if (e.target.closest('button') !== tg) flip(); };
+  }
+
+  function toast(msg, tone) {
+    const host = $('#toastHost');
+    const t = el('div', 'fade-up pointer-events-none flex items-center gap-2 rounded-full bg-slate-900/90 px-3.5 py-2 text-[11.5px] font-600 text-white shadow-lift backdrop-blur',
+      (tone === 'pot' ? '<span class="h-3 w-3 rounded-full ring-1 ring-white/40" style="background:' + (POT_COLORS.filter(function (c) { return c.id === state.pot; })[0] || {}).chip + '"></span>' : '<span class="h-1.5 w-1.5 rounded-full bg-brand-400"></span>') + esc(msg));
+    host.appendChild(t);
+    setTimeout(function () {
+      t.style.transition = 'opacity .3s, transform .3s';
+      t.style.opacity = '0';
+      t.style.transform = 'translateY(-6px)';
+      setTimeout(function () { t.remove(); }, 320);
+    }, 1900);
+  }
+
+  function select(id, keepSheet) {
+    state.plantId = id;
+    const plant = PLANTS.find(function (p) { return p.id === id; });
+    $('#loader').classList.remove('hidden');
+    $('#errBox').classList.add('hidden');
+    viewer.setAttribute('alt', plant.name + ' (' + plant.botanical + ') — 3D model shown at true ' + Math.round(plant.height * 100) + ' cm scale');
+    if (X.CONFIG.iosUsdzBase) viewer.setAttribute('ios-src', X.CONFIG.iosUsdzBase.replace(/\/+$/, '') + '/' + plant.id + '.usdz');
+    else if (viewer.hasAttribute('ios-src')) viewer.removeAttribute('ios-src');
+    try {
+      viewer.src = X.modelSrc(plant);
+    } catch (err) {
+      $('#loader').classList.add('hidden');
+      showError(err);
+      return;
+    }
+    setTimeout(function () { try { viewer.variantName = state.pot; } catch (e) { } }, 60);
+    $('#headerName').textContent = plant.name;
+    $('#headerBotanical').textContent = plant.botanical;
+    $('#headerThumb').innerHTML = X.thumbSVG(plant);
+    $('#catBadge').innerHTML = catIcon(plant.cat) + '<span>' + catLabel(plant.cat) + '</span>';
+    renderCatalog();
+    renderSheet();
+    if (!keepSheet) { /* keep current sheet state */ }
+  }
+
+  function showError(err) {
+    const box = $('#errBox');
+    box.textContent = 'Model could not be prepared on this device: ' + (err && err.message ? err.message : 'unknown error') + '. Try refreshing on Chrome or Safari.';
+    box.classList.remove('hidden');
+  }
+
+  viewer.addEventListener('load', function () {
+    $('#loader').classList.add('hidden');
+    try { viewer.variantName = state.pot; } catch (e) { }
+  });
+  viewer.addEventListener('error', function () {
+    $('#loader').classList.add('hidden');
+    showError(new Error('glTF rejected by the renderer'));
+  });
+  viewer.addEventListener('ar-status', function (e) {
+    const s = e.detail && e.detail.status;
+    if (s === 'session-started') toast('Move your phone to detect a surface', 'ar');
+    else if (s === 'surface-lost') toast('Surface lost — sweep slowly to find a plane', 'ar');
+    else if (s === 'session-ended') toast('Exited AR', 'ar');
+  });
+
+  async function detectAR() {
+    const chip = $('#arChip');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    let webxr = false;
+    try {
+      if (navigator.xr && navigator.xr.isSessionSupported) webxr = await navigator.xr.isSessionSupported('immersive-ar');
+    } catch (e) { }
+
+    let label, color;
+    if (webxr) { label = 'WebXR AR ready'; color = 'bg-brand-600'; state.arMode = 'webxr'; }
+    else if (isAndroid) {
+      state.arMode = X.CONFIG.modelBase ? 'scene-viewer' : 'webxr';
+      label = X.CONFIG.modelBase ? 'Scene Viewer ready' : 'WebXR · host .glb for Scene Viewer';
+      color = X.CONFIG.modelBase ? 'bg-slate-700' : 'bg-amber-500';
+    } else if (isIOS) {
+      state.arMode = X.CONFIG.iosUsdzBase ? 'quick-look' : 'preview';
+      label = X.CONFIG.iosUsdzBase ? 'Quick Look ready' : 'Quick Look · add USDZ';
+      color = X.CONFIG.iosUsdzBase ? 'bg-slate-700' : 'bg-amber-500';
+    } else { label = '3D preview · open on mobile for AR'; color = 'bg-slate-600'; state.arMode = 'preview'; }
+
+    state.arSupported = webxr || isAndroid || (isIOS && !!X.CONFIG.iosUsdzBase);
+    chip.className = 'pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-600 text-white backdrop-blur ' + color;
+    chip.innerHTML = '<span class="h-1.5 w-1.5 rounded-full bg-white/80"></span><span>' + label + '</span>';
+
+    if (!window.isSecureContext) {
+      const w = $('#secureWarn');
+      w.className = 'pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-[11px] font-600 text-amber-950';
+      w.textContent = 'AR needs HTTPS or localhost';
+    }
+  }
+
+  $('#ar-button').addEventListener('click', function () {
+    toast('Starting AR session…', 'ar');
+  });
+
+  $('#btnReset').onclick = function () {
+    viewer.cameraOrbit = '30deg 76deg auto';
+    viewer.autoRotate = state.spin;
+    toast('View reset');
+  };
+  $('#btnSpin').onclick = function () {
+    state.spin = !state.spin;
+    viewer.autoRotate = state.spin;
+    this.classList.toggle('text-brand-700', state.spin);
+    toast(state.spin ? 'Auto-rotate on' : 'Auto-rotate off');
+  };
+  $('#btnFull').onclick = function () {
+    const host = $('#viewerWrap');
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (host.requestFullscreen) host.requestFullscreen();
+  };
+  $('#btnMeasure').onclick = function () {
+    const p = PLANTS.find(function (x) { return x.id === state.plantId; });
+    toast('True scale · ' + Math.round(p.height * 100) + ' cm tall', 'pot');
+  };
+  $('#btnShare').onclick = async function () {
+    const p = PLANTS.find(function (x) { return x.id === state.plantId; });
+    const data = { title: X.CONFIG.brand + ' · ' + p.name, text: p.name + ' (' + p.botanical + ') — ' + p.dims + ' · ' + money(p.price), url: location.href };
+    try {
+      if (navigator.share) await navigator.share(data);
+      else { await navigator.clipboard.writeText(data.url + '\n' + data.text); toast('Details copied to clipboard'); }
+    } catch (e) { }
+  };
+
+  function setPresent(on) {
+    state.present = on;
+    document.body.classList.toggle('present', on);
+    $('#btnExitPresent').className = on
+      ? 'flex items-center gap-1.5 rounded-xl bg-brand-900 px-3 py-2 text-xs font-600 text-brand-50 shadow-soft active:scale-95'
+      : 'hidden items-center gap-1.5 rounded-xl bg-brand-900 px-3 py-2 text-xs font-600 text-brand-50 shadow-soft active:scale-95';
+    setTimeout(renderSheet, 30);
+  }
+  $('#btnPresent').onclick = function () { setPresent(true); toast('Presentation mode · tap Exit to return'); };
+  $('#btnExitPresent').onclick = function () { setPresent(false); };
+
+  function setNav(open) {
+    state.navOpen = open;
+    document.body.classList.toggle('nav-open', open && window.innerWidth < 1024);
+    document.body.classList.toggle('nav-closed', !open && window.innerWidth >= 1024);
+    $('#scrim').classList.toggle('hidden', !(open && window.innerWidth < 1024));
+    $('#navToggle').setAttribute('aria-expanded', String(window.innerWidth >= 1024 ? !open : open));
+  }
+  $('#navToggle').onclick = function () {
+    if (window.innerWidth >= 1024) setNav(!state.navOpen);
+    else setNav(!state.navOpen);
+  };
+  $('#scrim').onclick = function () { setNav(false); };
+
+  const search = $('#search');
+  let sTimer;
+  search.addEventListener('input', function () {
+    clearTimeout(sTimer);
+    sTimer = setTimeout(function () {
+      state.query = search.value.trim();
+      $('#searchClear').classList.toggle('hidden', !state.query);
+      renderCatalog();
+    }, 90);
+  });
+  $('#searchClear').onclick = function () {
+    search.value = '';
+    state.query = '';
+    this.classList.add('hidden');
+    renderCatalog();
+    search.focus();
+  };
+  $('#sort').onchange = function () { state.sort = this.value; renderCatalog(); };
+
+  document.addEventListener('keydown', function (e) {
+    const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
+    if (e.key === '/' && !typing) { e.preventDefault(); if (window.innerWidth < 1024) setNav(true); search.focus(); }
+    else if (e.key === 'Escape') { if (document.body.classList.contains('nav-open')) setNav(false); else if (state.present) setPresent(false); }
+    else if (!typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      const list = filtered();
+      const i = list.findIndex(function (p) { return p.id === state.plantId; });
+      const j = clamp(i + (e.key === 'ArrowRight' ? 1 : -1), 0, list.length - 1);
+      if (list[j]) select(list[j].id);
+    } else if (!typing && (e.key === 'p' || e.key === 'P')) { setPresent(!state.present); }
+  });
+
+  let rz;
+  window.addEventListener('resize', function () {
+    clearTimeout(rz);
+    rz = setTimeout(function () {
+      if (window.innerWidth >= 1024) {
+        document.body.classList.remove('nav-open');
+        $('#scrim').classList.add('hidden');
+        document.body.classList.toggle('nav-closed', !state.navOpen);
+      } else {
+        document.body.classList.remove('nav-closed');
+        document.body.classList.toggle('nav-open', state.navOpen);
+        $('#scrim').classList.toggle('hidden', !state.navOpen);
+      }
+      state.sheetOpen = false;
+      renderSheet();
+    }, 140);
+  });
+
+  renderChips();
+  renderCatalog();
+  renderPotRow();
+  select(state.plantId);
+  setNav(window.innerWidth >= 1024 ? true : false);
+  detectAR();
+})();
+</script>
+</body>
+</html>
