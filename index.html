@@ -66,7 +66,7 @@
     body.nav-open #sidebar { width: 344px; }
   }
 
-  model-viewer { width: 100%; height: 100%; background: transparent; touch-action: pan-y; }
+  model-viewer { width: 100%; height: 100%; background: transparent !important; --poster-color: transparent; --background-color: transparent; touch-action: pan-y; }
   model-viewer::part(default-ar-button) { display: none; }
   #ar-button {
     position: absolute; right: 14px; bottom: 14px;
@@ -85,6 +85,16 @@
     #ar-button { right: 12px; bottom: 92px; padding: .62rem .9rem; font-size: .8rem; }
   }
 
+  #camFeed {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; background: #0f172a;
+    opacity: 0; transition: opacity .45s ease; pointer-events: none;
+  }
+  #camFeed.live { opacity: 1; }
+  #camFeed.mirrored { transform: scaleX(-1); }
+  #camFeed.live ~ #stageTint { opacity: 0; }
+  #stageTint { position: absolute; inset: 0; pointer-events: none; transition: opacity .45s ease;
+    background: radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(2,44,34,.42) 100%); }
   .grain::after {
     content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
     background-image: radial-gradient(circle at 1px 1px, rgba(6,78,59,.13) 1px, transparent 0);
@@ -194,9 +204,9 @@
 
         <div class="shrink-0 border-t border-slate-100 bg-slate-50/70 px-4 py-3 pb-safe">
           <p class="text-[11px] leading-relaxed text-slate-500">
-            <span class="font-600 text-slate-700">AR tip:</span> on Android open Chrome, tap
-            <span class="font-500 text-brand-700">View in your space</span> and sweep your phone across the desk.
-            Surface detection places the plant instantly.
+            <span class="font-600 text-slate-700">Live camera:</span> tap the camera button to see the plant
+            over your real room while you frame it, then
+            <span class="font-500 text-brand-700">View in your space</span> to anchor it to the surface.
           </p>
         </div>
       </div>
@@ -206,10 +216,15 @@
 
     <section class="relative min-w-0 flex-1">
 
-      <div id="viewerWrap" class="grain absolute inset-0 flex flex-col bg-gradient-to-b from-brand-50 via-white to-slate-100">
+      <div id="viewerWrap" class="grain absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-b from-brand-50 via-white to-slate-100">
+
+        <video id="camFeed" playsinline muted autoplay disablepictureinpicture aria-hidden="true"></video>
+        <div id="stageTint"></div>
 
         <model-viewer id="viewer"
+          class="relative z-10"
           ar
+          alpha
           ar-modes="webxr scene-viewer quick-look"
           camera-controls
           disable-zoom
@@ -235,7 +250,7 @@
           </button>
         </model-viewer>
 
-        <div id="loader" class="pointer-events-none absolute inset-0 grid place-items-center">
+        <div id="loader" class="pointer-events-none absolute inset-0 z-40 grid place-items-center">
           <div class="flex flex-col items-center gap-3">
             <div class="relative h-14 w-14">
               <span class="absolute inset-0 rounded-2xl border-2 border-brand-200"></span>
@@ -246,27 +261,38 @@
           </div>
         </div>
 
-        <div id="errBox" class="absolute inset-x-4 top-16 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800"></div>
+        <div id="errBox" class="absolute inset-x-4 top-16 z-40 hidden rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800"></div>
 
-        <div class="pointer-events-none absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 sm:left-4 sm:top-4">
+        <div class="pointer-events-none absolute left-3 top-3 z-20 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 sm:left-4 sm:top-4">
           <span id="catBadge" class="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 text-[11px] font-600 text-brand-800 shadow-soft ring-1 ring-brand-900/5 backdrop-blur"></span>
           <span id="arChip" class="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-slate-900/85 px-3 py-1.5 text-[11px] font-600 text-white backdrop-blur"></span>
+          <span id="camChip" class="pointer-events-auto hidden items-center gap-1.5 rounded-full bg-rose-600 px-3 py-1.5 text-[11px] font-600 text-white shadow-soft backdrop-blur">
+            <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-white"></span>
+            <span>Camera live · preview only</span>
+          </span>
           <span id="secureWarn" class="hidden items-center gap-1.5 rounded-full bg-amber-500 px-3 py-1.5 text-[11px] font-600 text-amber-950"></span>
         </div>
 
-        <div class="absolute right-3 top-3 z-10 flex flex-col gap-1.5 sm:right-4 sm:top-4">
+        <div class="absolute right-3 top-3 z-20 flex flex-col gap-1.5 sm:right-4 sm:top-4">
           <button id="btnReset" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Reset camera">
             <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 4v4h4"/></svg>
           </button>
           <button id="btnSpin" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Toggle auto rotate">
             <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4.5a7.5 7.5 0 1 1-6.9 4.6"/><path d="M12 4.5 9 2.6M12 4.5l3-1.9"/></svg>
           </button>
+          <button id="btnCam" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Live camera preview" aria-pressed="false" data-tip="Live camera">
+            <svg class="h-4.5 w-4.5" width="18" height="18" viewB
+ox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="m15.5 10.5 6-3.2v9.4l-6-3.2z"/></svg>
+          </button>
+          <button id="btnFlip" class="hidden h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Switch camera" data-tip="Flip camera">
+            <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V6.5A2.5 2.5 0 0 1 6.5 4H9"/><path d="M15 4h2.5A2.5 2.5 0 0 1 20 6.5V8"/><path d="M20 16v1.5a2.5 2.5 0 0 1-2.5 2.5H15"/><path d="M9 20H6.5A2.5 2.5 0 0 1 4 17.5V16"/><path d="M12 8.5a3.5 3.5 0 1 1-3.5 3.5"/><path d="M8.5 9.5v2.5h2.5"/></svg>
+          </button>
           <button id="btnFull" class="grid h-9 w-9 place-items-center rounded-xl bg-white/90 text-slate-600 shadow-soft ring-1 ring-slate-900/5 backdrop-blur transition hover:text-brand-700 active:scale-95" aria-label="Fullscreen">
             <svg class="h-4.5 w-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5.5A2.5 2.5 0 0 0 3 5.5V8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M16 21h2.5a2.5 2.5 0 0 0 2.5-2.5V16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/></svg>
           </button>
         </div>
 
-        <div class="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2.5 px-3">
+        <div class="absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2.5 px-3">
           <div class="flex w-full items-center justify-center gap-2 pb-1">
             <span class="hide-present hidden rounded-full bg-white/85 px-2.5 py-1 text-[10.5px] font-600 uppercase tracking-[.1em] text-slate-500 backdrop-blur sm:inline">Pot finish</span>
             <div id="potRow" class="hide-present flex items-center gap-1.5 rounded-2xl bg-white/85 p-1.5 shadow-soft ring-1 ring-slate-900/5 backdrop-blur"></div>
@@ -278,7 +304,7 @@
           <div id="cardHost" class="w-full sm:w-auto"></div>
         </div>
 
-        <div id="toastHost" class="pointer-events-none absolute left-1/2 top-20 z-30 flex -translate-x-1/2 flex-col items-center gap-2"></div>
+        <div id="toastHost" class="pointer-events-none absolute left-1/2 top-20 z-40 flex -translate-x-1/2 flex-col items-center gap-2"></div>
       </div>
     </section>
   </main>
@@ -1373,6 +1399,12 @@ dracaena: function (c) {
   const esc = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); };
 
   const viewer = $('#viewer');
+  const camFeed = $('#camFeed');
+  const cam = { on: false, stream: null, facing: 'environment', resume: false, devices: [] };
+
+  function cameraSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) && window.isSecureContext;
+  }
   const state = {
     plantId: PLANTS[0].id,
     pot: X.CONFIG.defaultPot,
@@ -1657,9 +1689,12 @@ dracaena: function (c) {
   });
   viewer.addEventListener('ar-status', function (e) {
     const s = e.detail && e.detail.status;
-    if (s === 'session-started') toast('Move your phone to detect a surface', 'ar');
-    else if (s === 'surface-lost') toast('Surface lost — sweep slowly to find a plane', 'ar');
-    else if (s === 'session-ended') toast('Exited AR', 'ar');
+    if (s === 'session-started') { toast('Move your phone to detect a surface', 'ar'); }
+    else if (s === 'surface-lost') { toast('Surface lost — sweep slowly to find a plane', 'ar'); }
+    else if (s === 'session-ended') {
+      toast('Exited AR', 'ar');
+      if (cam.resume && !cam.on) startCamera();
+    }
   });
 
   async function detectAR() {
@@ -1695,9 +1730,102 @@ dracaena: function (c) {
     }
   }
 
+  function setCamUI(on) {
+    const btn = $('#btnCam');
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.classList.toggle('bg-brand-600', on);
+    btn.classList.toggle('text-white', on);
+    btn.classList.toggle('bg-white/90', !on);
+    camFeed.classList.toggle('live', on);
+    camFeed.classList.toggle('mirrored', on && cam.facing === 'user');
+    $('#camChip').classList.toggle('hidden', !on);
+    $('#camChip').classList.toggle('inline-flex', on);
+    $('#btnFlip').classList.toggle('hidden', !(on && cam.devices.length > 1));
+    $('#btnFlip').classList.toggle('grid', on && cam.devices.length > 1);
+  }
+
+  async function startCamera() {
+    if (!cameraSupported()) {
+      toast('Camera needs HTTPS or localhost on this device');
+      return false;
+    }
+    try {
+      cam.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: cam.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      camFeed.srcObject = cam.stream;
+      await camFeed.play();
+      try {
+        const list = await navigator.mediaDevices.enumerateDevices();
+        cam.devices = list.filter(function (d) { return d.kind === 'videoinput'; });
+      } catch (e) { cam.devices = []; }
+      cam.on = true;
+      setCamUI(true);
+      toast('Live camera on · drag to orbit, tap AR to anchor it');
+      return true;
+    } catch (err) {
+      cam.on = false;
+      setCamUI(false);
+      const name = err && err.name;
+      if (name === 'NotAllowedError' || name === 'SecurityError') toast('Camera permission denied — allow it in your browser settings');
+      else if (name === 'NotFoundError' || name === 'OverconstrainedError') toast('No camera found on this device');
+      else if (name === 'NotReadableError') toast('Camera is busy in another app — close it and retry');
+      else toast('Camera unavailable: ' + (name || 'unknown error'));
+      return false;
+    }
+  }
+
+  function stopCamera() {
+    if (cam.stream) {
+      cam.stream.getTracks().forEach(function (t) { t.stop(); });
+      cam.stream = null;
+    }
+    camFeed.srcObject = null;
+    cam.on = false;
+    setCamUI(false);
+  }
+
+  async function toggleCamera() {
+    if (cam.on) { cam.resume = false; stopCamera(); toast('Camera off'); return; }
+    cam.resume = true;
+    const ok = await startCamera();
+    if (!ok) cam.resume = false;
+  }
+
+  $('#btnCam').onclick = toggleCamera;
+  $('#btnFlip').onclick = async function () {
+    if (!cam.on) return;
+    const order = ['environment', 'user'];
+    cam.facing = order[(order.indexOf(cam.facing) + 1) % order.length];
+    const keep = cam.resume;
+    stopCamera();
+    cam.resume = keep;
+    await startCamera();
+  };
+
   $('#ar-button').addEventListener('click', function () {
-    toast('Starting AR session…', 'ar');
+    if (viewer.canActivateAR) toast('Starting AR session…', 'ar');
   });
+
+  $('#ar-button').addEventListener('pointerdown', function () {
+    if (cam.on) { cam.resume = true; stopCamera(); }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { if (cam.on) { cam.resume = true; stopCamera(); } }
+    else if (cam.resume && !cam.on) startCamera();
+  });
+
+  window.addEventListener('pagehide', function () { stopCamera(); });
+
+  if (!cameraSupported()) {
+    const cb = $('#btnCam');
+    cb.disabled = true;
+    cb.classList.add('opacity-40', 'cursor-not-allowed');
+    cb.setAttribute('data-tip', 'Camera needs HTTPS or localhost');
+  }
+  setCamUI(false);
 
   $('#btnReset').onclick = function () {
     viewer.cameraOrbit = '30deg 76deg auto';
